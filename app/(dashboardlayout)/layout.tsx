@@ -3,9 +3,9 @@ import Topbar from "@/components/Topbar";
 
 export default function DashboardLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <div className="flex">
       <Sidebar />
