@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, Filter, UserPlus, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { employees } from "@/lib/mock-data";
+import { Search, UserPlus, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { employees as seedEmployees, Employee } from "@/lib/mock-data";
+import { getAllEmployees } from "@/lib/storage";
 import StatusBadge from "@/components/StatusBadge";
+import { useState, useMemo, useEffect } from "react";
 
 const PAGE_SIZE = 5;
 
@@ -13,14 +14,20 @@ export default function EmployeesPage() {
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
   const [page, setPage] = useState(1);
+  
+const [employees, setEmployees] = useState<Employee[]>(seedEmployees);
+useEffect(() => {
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  setEmployees(getAllEmployees(seedEmployees));
+}, []);
 
   const departments = useMemo(
     () => Array.from(new Set(employees.map((e) => e.department))).sort(),
-    []
+    [employees]
   );
   const roles = useMemo(
     () => Array.from(new Set(employees.map((e) => e.role))).sort(),
-    []
+    [employees]
   );
 
   const filteredEmployees = useMemo(() => {
@@ -37,7 +44,7 @@ export default function EmployeesPage() {
 
       return matchesSearch && matchesDepartment && matchesRole;
     });
-  }, [searchTerm, department, role]);
+  }, [searchTerm, department, role, employees]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);

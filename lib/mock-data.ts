@@ -1,3 +1,9 @@
+export interface EmergencyContact {
+  name: string;
+  relationship: string;
+  phone: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
@@ -8,6 +14,18 @@ export interface Employee {
   type: "Full-time" | "Contract" | "Intern";
   status: "Active" | "Suspended" | "Resigned";
   avatarInitials?: string;
+  // Extended profile fields (optional — only filled in for employees with a full profile)
+  location?: string;
+  personalEmail?: string;
+  mobilePhone?: string;
+  mailingAddress?: string;
+  joinedDate?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  emergencyContacts?: EmergencyContact[];
+  keySkills?: string[];
+  availableTimeOffDays?: number;
+  performanceRating?: string;
 }
 
 export const employees: Employee[] = [
@@ -61,6 +79,31 @@ export const employees: Employee[] = [
     type: "Full-time",
     status: "Active",
     avatarInitials: "JD",
+  },
+
+  {
+    id: "marcus-holloway",
+    name: "Marcus Holloway",
+    email: "m.holloway@hrconnect.com",
+    employeeId: "EMP-5021",
+    department: "Engineering",
+    role: "Senior Software Engineer",
+    type: "Full-time",
+    status: "Active",
+    location: "Seattle, WA (Remote)",
+    personalEmail: "marcus.h@gmail.com",
+    mobilePhone: "+1 (206) 555-0192",
+    mailingAddress: "1248 Northgate Dr, Seattle, WA 98125",
+    joinedDate: "October 2021",
+    dateOfBirth: "June 14, 1992",
+    gender: "Male",
+    emergencyContacts: [
+      { name: "Elena Holloway", relationship: "Spouse", phone: "+1 (206) 555-0144" },
+      { name: "Robert Holloway", relationship: "Father", phone: "+1 (415) 555-0298" },
+    ],
+    keySkills: ["Node.js", "React", "PostgreSQL", "AWS", "System Design", "Mentoring"],
+    availableTimeOffDays: 18.5,
+    performanceRating: "Exceeds",
   },
 ];
 
