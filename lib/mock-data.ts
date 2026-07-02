@@ -14,7 +14,6 @@ export interface Employee {
   type: "Full-time" | "Contract" | "Intern";
   status: "Active" | "Suspended" | "Resigned";
   avatarInitials?: string;
-  // Extended profile fields (optional — only filled in for employees with a full profile)
   location?: string;
   personalEmail?: string;
   mobilePhone?: string;
@@ -22,6 +21,7 @@ export interface Employee {
   joinedDate?: string;
   dateOfBirth?: string;
   gender?: string;
+  nationality?: string;
   emergencyContacts?: EmergencyContact[];
   keySkills?: string[];
   availableTimeOffDays?: number;

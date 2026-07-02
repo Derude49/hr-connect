@@ -12,6 +12,8 @@ import {
   LineChart,
   Settings,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 
 const navItems = [

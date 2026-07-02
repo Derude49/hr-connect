@@ -4,26 +4,10 @@ import { useRouter } from "next/navigation";
 import { UserPlus, Briefcase, FileText, BarChart3 } from "lucide-react";
 
 const actions = [
-  {
-    label: "Add Employee",
-    icon: UserPlus,
-    href: "/employees/onboarding",
-  },
-  {
-    label: "Post Job",
-    icon: Briefcase,
-    href: "/jobs",
-  },
-  {
-    label: "Run Payroll",
-    icon: FileText,
-    href: "/payroll",
-  },
-  {
-    label: "Reports",
-    icon: BarChart3,
-    href: "/performance",
-  },
+  { label: "Add Employee", icon: UserPlus, href: "/employees/onboarding" },
+  { label: "Post Job", icon: Briefcase, href: null },
+  { label: "Run Payroll", icon: FileText, href: "/payroll" },
+  { label: "Reports", icon: BarChart3, href: null },
 ];
 
 export default function QuickActions() {
@@ -36,8 +20,12 @@ export default function QuickActions() {
         {actions.map(({ label, icon: Icon, href }) => (
           <button
             key={label}
-            onClick={() => router.push(href)}
-            className="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 py-6 text-sm font-medium hover:bg-slate-50 transition"
+            onClick={() => href && router.push(href)}
+            className={`flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 py-6 text-sm font-medium transition ${
+              href
+                ? "cursor-pointer hover:bg-slate-50"
+                : "cursor-default opacity-60"
+            }`}
           >
             <Icon className="h-5 w-5 text-slate-700" />
             {label}

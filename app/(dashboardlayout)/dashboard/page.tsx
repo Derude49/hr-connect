@@ -1,14 +1,46 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { employees as seedEmployees, leaveRequests as seedLeaveRequests } from "@/lib/mock-data";
+import { getAllEmployees } from "@/lib/storage";
 import StatCard from "@/components/StatCard";
 import RecentActivity from "@/components/RecentActivity";
 import QuickActions from "@/components/QuickActions";
 import Milestones from "@/components/Milestones";
 import PayrollStatus from "@/components/PayrollStatus";
 import { Calendar, Download } from "lucide-react";
-import { employees, leaveRequests } from "@/lib/mock-data";
 
 export default function DashboardPage() {
-  const totalEmployees = employees.length;
-  const pendingLeave = leaveRequests.filter(r => r.status === "Pending").length;
+  const [totalEmployees, setTotalEmployees] = useState(seedEmployees.length);
+  const [pendingLeave, setPendingLeave] = useState(
+    seedLeaveRequests.filter((r) => r.status === "Pending").length
+  );
+  
+  useEffect(() => {
+    // Total employees from localStorage + seed data
+    const allEmployees = getAllEmployees(seedEmployees);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTotalEmployees(allEmployees.length);
+
+    // Pending leave from the same key the leave page uses
+    try {
+      const raw = localStorage.getItem("hr_connect_leave_requests");
+      if (raw) {
+        const leaveData = JSON.parse(raw);
+        const pending = leaveData.filter((r: { status: string }) => r.status === "Pending").length;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPendingLeave(pending);
+      } else {
+        // Fall back to seed data count if leave page hasn't initialized yet
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPendingLeave(seedLeaveRequests.filter((r) => r.status === "Pending").length);
+      }
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingLeave(seedLeaveRequests.filter((r) => r.status === "Pending").length);
+    }
+  }, []);
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
