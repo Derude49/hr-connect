@@ -12,7 +12,19 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  Pencil,
 } from "lucide-react";
+import {
+  deleteLeaveDraft,
+  formatLeaveUpdatedAt,
+  getLeaveDrafts,
+  getLeaveDraftSummary,
+  getLeaveRequests,
+  initializeLeaveDraftStorage,
+  LEAVE_REQUESTS_KEY,
+  type SavedLeaveDraft,
+} from "@/lib/leave-store";
 
 const INITIAL_REQUESTS_DATA = [
   {
@@ -72,17 +84,45 @@ export default function LeaveManagementDashboard() {
 
   const [requests, setRequests] = useState(INITIAL_REQUESTS_DATA);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<SavedLeaveDraft[]>([]);
+
+  const refreshDraftState = () => {
+    initializeLeaveDraftStorage();
+    setDrafts(getLeaveDrafts());
+  };
+
+  const handleDeleteDraft = (draft: SavedLeaveDraft) => {
+    const confirmed = window.confirm(
+      `Delete the saved draft for ${draft.data.employeeName.trim() || "this application"}? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    deleteLeaveDraft(draft.id);
+    refreshDraftState();
+  };
 
   useEffect(() => {
-    const savedRequests = localStorage.getItem("hr_connect_leave_requests");
+    refreshDraftState();
+
+    const savedRequests = localStorage.getItem(LEAVE_REQUESTS_KEY);
     if (savedRequests) {
       setRequests(JSON.parse(savedRequests));
     } else {
       localStorage.setItem(
-        "hr_connect_leave_requests",
+        LEAVE_REQUESTS_KEY,
         JSON.stringify(INITIAL_REQUESTS_DATA),
       );
     }
+
+    const handleFocus = () => {
+      refreshDraftState();
+      const refreshed = getLeaveRequests();
+      if (refreshed.length > 0) {
+        setRequests(refreshed);
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
   const handleUpdateStatus = (targetId: string, nextStatus: string) => {
@@ -94,7 +134,7 @@ export default function LeaveManagementDashboard() {
     });
 
     setRequests(updated);
-    localStorage.setItem("hr_connect_leave_requests", JSON.stringify(updated));
+    localStorage.setItem(LEAVE_REQUESTS_KEY, JSON.stringify(updated));
   };
 
   const handleInitialActionConfirm = (
@@ -166,9 +206,88 @@ export default function LeaveManagementDashboard() {
           className="text-xs font-semibold text-white bg-[#0f172a] hover:bg-slate-800 px-4 py-2.5 rounded-lg flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          <span>Apply for Leave</span>
+          <span>New Application</span>
         </Link>
       </div>
+
+      {drafts.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-amber-100 bg-amber-50/60">
+            <div>
+              <h2 className="text-sm font-bold text-amber-900">
+                Saved Application Drafts
+              </h2>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {drafts.length} draft{drafts.length === 1 ? "" : "s"} saved locally.
+                Start a new application anytime without losing these.
+              </p>
+            </div>
+            <Link
+              href="/leave/apply"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Application
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {drafts.map((draft) => {
+              const summary = getLeaveDraftSummary(draft);
+              const updatedLabel = formatLeaveUpdatedAt(draft.updatedAt);
+
+              return (
+                <div
+                  key={draft.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 truncate">
+                      {summary.title}
+                    </p>
+                    <p className="text-xs text-slate-500 font-medium truncate">
+                      {summary.subtitle}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-400">
+                      {summary.datesLabel && <span>{summary.datesLabel}</span>}
+                      {updatedLabel && (
+                        <>
+                          {summary.datesLabel && <span>·</span>}
+                          <span>Saved {updatedLabel}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Link
+                      href={`/leave/apply?draft=${draft.id}&mode=view`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      View Draft
+                    </Link>
+                    <Link
+                      href={`/leave/apply?draft=${draft.id}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Continue
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDraft(draft)}
+                      className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* SECTION 2: LEAVE METRICS GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

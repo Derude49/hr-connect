@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown,
   FileUp,
@@ -10,127 +10,48 @@ import {
   Info,
   ClipboardList,
   Check,
+  Eye,
+  Pencil,
 } from "lucide-react";
-
-const DRAFT_STORAGE_KEY = "hr_connect_leave_draft";
-const REQUESTS_STORAGE_KEY = "hr_connect_leave_requests";
-
-type LeaveDraft = {
-  employeeName: string;
-  employeeRole: string;
-  leaveType: string;
-  urgency: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  uploadedFile: string | null;
-};
-
-type LeaveRequest = {
-  id: string;
-  name: string;
-  role: string;
-  initials: string;
-  avatarBg: string;
-  leaveType: string;
-  typeColor: string;
-  dates: string;
-  duration: string;
-  status: string;
-};
-
-const DEFAULT_DRAFT: LeaveDraft = {
-  employeeName: "",
-  employeeRole: "",
-  leaveType: "",
-  urgency: "Standard",
-  startDate: "",
-  endDate: "",
-  reason: "",
-  uploadedFile: null,
-};
-
-const AVATAR_BACKGROUNDS = [
-  "bg-blue-100 text-blue-800",
-  "bg-purple-100 text-purple-800",
-  "bg-emerald-100 text-emerald-800",
-  "bg-slate-200 text-slate-800",
-  "bg-rose-100 text-rose-800",
-];
-
-const LEAVE_TYPE_MAP: Record<
-  string,
-  { label: string; typeColor: string }
-> = {
-  ANNUAL: { label: "Annual Leave", typeColor: "bg-blue-500" },
-  SICK: { label: "Sick Leave", typeColor: "bg-rose-500" },
-  PERSONAL: { label: "Personal Leave", typeColor: "bg-slate-400" },
-  MATERNITY: { label: "Maternity Leave", typeColor: "bg-slate-400" },
-};
-
-function getSavedDraft(): LeaveDraft {
-  if (typeof window === "undefined") return DEFAULT_DRAFT;
-  const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
-  if (!saved) return { ...DEFAULT_DRAFT };
-  return { ...DEFAULT_DRAFT, ...JSON.parse(saved) };
-}
-
-function persistDraft(draft: LeaveDraft) {
-  localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-}
-
-function clearDraft() {
-  localStorage.removeItem(DRAFT_STORAGE_KEY);
-}
-
-function formsEqual(a: LeaveDraft, b: LeaveDraft) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function getInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
-}
-
-function pickAvatarBg(name: string) {
-  const index =
-    name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) %
-    AVATAR_BACKGROUNDS.length;
-  return AVATAR_BACKGROUNDS[index];
-}
-
-function formatDateRange(start: string, end: string) {
-  const options: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  };
-  const startLabel = new Date(start).toLocaleDateString("en-US", options);
-  const endLabel = new Date(end).toLocaleDateString("en-US", options);
-  return `${startLabel} - ${endLabel}`;
-}
-
-function calculateDuration(start: string, end: string) {
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  const days = Math.floor((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
-  return days === 1 ? "1 Day" : `${days} Days`;
-}
-
-function getExistingRequests(): LeaveRequest[] {
-  const saved = localStorage.getItem(REQUESTS_STORAGE_KEY);
-  return saved ? JSON.parse(saved) : [];
-}
+import {
+  DEFAULT_LEAVE_DRAFT,
+  deleteLeaveDraft,
+  FieldErrors,
+  formsEqual,
+  getLeaveDraftById,
+  getLeaveDraftUpdatedLabel,
+  initializeLeaveDraftStorage,
+  saveLeaveDraft,
+  submitLeaveRequest,
+  validateLeaveForm,
+  VALIDATION_RULES,
+  type LeaveDraft,
+} from "@/lib/leave-store";
 
 export default function ApplyForLeavePage() {
-  const router = useRouter();
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 p-6 md:p-8 flex items-center justify-center text-sm text-slate-500">
+          Loading application form...
+        </div>
+      }
+    >
+      <ApplyForLeaveContent />
+    </Suspense>
+  );
+}
 
-  const [savedSnapshot, setSavedSnapshot] = useState<LeaveDraft>(DEFAULT_DRAFT);
+function ApplyForLeaveContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode");
+  const draftId = searchParams.get("draft");
+  const isViewDraft = mode === "view";
+  const isReadOnly = isViewDraft;
+  const isNewApplication = !draftId;
+
+  const [savedSnapshot, setSavedSnapshot] = useState<LeaveDraft>(DEFAULT_LEAVE_DRAFT);
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
   const [leaveType, setLeaveType] = useState("");
@@ -142,11 +63,9 @@ export default function ApplyForLeavePage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("Today, 09:42 AM");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<string | null>(
-    null,
-  );
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const applyDraft = useCallback((draft: LeaveDraft) => {
     setEmployeeName(draft.employeeName);
@@ -161,9 +80,29 @@ export default function ApplyForLeavePage() {
   }, []);
 
   useEffect(() => {
-    applyDraft(getSavedDraft());
+    initializeLeaveDraftStorage();
+
+    if (isViewDraft && !draftId) {
+      router.replace("/leave");
+      return;
+    }
+
+    if (draftId) {
+      const saved = getLeaveDraftById(draftId);
+      if (saved) {
+        applyDraft(saved.data);
+      } else if (isViewDraft) {
+        router.replace("/leave");
+        return;
+      } else {
+        applyDraft({ ...DEFAULT_LEAVE_DRAFT });
+      }
+    } else {
+      applyDraft({ ...DEFAULT_LEAVE_DRAFT });
+    }
+
     setIsLoaded(true);
-  }, [applyDraft]);
+  }, [applyDraft, draftId, isViewDraft, router]);
 
   const getCurrentForm = useCallback(
     (): LeaveDraft => ({
@@ -196,23 +135,110 @@ export default function ApplyForLeavePage() {
     applyDraft(savedSnapshot);
   }, [applyDraft, savedSnapshot]);
 
-  const handleSaveDraft = useCallback(() => {
+  const clearFieldError = useCallback((field: keyof LeaveDraft) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
+  const handleSaveDraft = useCallback((): boolean => {
     const payload = getCurrentForm();
-    persistDraft(payload);
+    const { isValid, errors } = validateLeaveForm(payload);
+
+    if (!isValid) {
+      setFieldErrors(errors);
+      window.alert(
+        "Please complete all required fields correctly before saving a draft.",
+      );
+      return false;
+    }
+
+    const savedId = saveLeaveDraft(payload, draftId);
     setSavedSnapshot({ ...payload });
+    setFieldErrors({});
+
+    if (!draftId) {
+      router.replace(`/leave/apply?draft=${savedId}`);
+    }
+
     window.alert("Draft saved. You can return to finish this application later.");
-  }, [getCurrentForm]);
+    return true;
+  }, [getCurrentForm, draftId, router]);
+
+  const handleSubmitApplication = useCallback(
+    (e?: React.FormEvent) => {
+      e?.preventDefault();
+
+      const payload = isReadOnly
+        ? (draftId ? getLeaveDraftById(draftId)?.data : null)
+        : getCurrentForm();
+
+      if (!payload) {
+        window.alert("No saved application data to submit.");
+        return;
+      }
+
+      const { isValid, errors } = validateLeaveForm(payload);
+
+      if (!isValid) {
+        setFieldErrors(errors);
+        window.alert(
+          "Please complete all required fields correctly before submitting.",
+        );
+        return;
+      }
+
+      const newRequest = submitLeaveRequest(payload, draftId);
+      setFieldErrors({});
+
+      window.alert(
+        `Leave application submitted for ${newRequest.name}. It is now pending approval on the Leave Management dashboard.`,
+      );
+      router.push("/leave");
+    },
+    [isReadOnly, getCurrentForm, draftId, router],
+  );
+
+  const handleEditDraft = useCallback(() => {
+    if (!draftId) {
+      router.push("/leave/apply");
+      return;
+    }
+    router.push(`/leave/apply?draft=${draftId}`);
+  }, [draftId, router]);
+
+  const handleViewDraft = useCallback(() => {
+    if (!draftId) return;
+    router.push(`/leave/apply?draft=${draftId}&mode=view`);
+  }, [draftId, router]);
+
+  const handleDeleteSavedDraft = useCallback(() => {
+    if (!draftId) return;
+
+    const confirmed = window.confirm(
+      "Delete this saved leave application draft? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    deleteLeaveDraft(draftId);
+    setFieldErrors({});
+    window.alert("Saved draft deleted.");
+    router.push("/leave");
+  }, [draftId, router]);
 
   const attemptNavigation = useCallback(
     (href: string) => {
-      if (checkIsFormDirty()) {
+      if (!isReadOnly && checkIsFormDirty()) {
         setPendingNavigation(href);
         setShowUnsavedModal(true);
         return;
       }
       router.push(href);
     },
-    [checkIsFormDirty, router],
+    [checkIsFormDirty, router, isReadOnly],
   );
 
   const completePendingNavigation = useCallback(() => {
@@ -224,8 +250,10 @@ export default function ApplyForLeavePage() {
   }, [pendingNavigation, router]);
 
   const handleSaveAndLeave = () => {
-    handleSaveDraft();
-    completePendingNavigation();
+    const saved = handleSaveDraft();
+    if (saved) {
+      completePendingNavigation();
+    }
   };
 
   const handleDiscardAndLeave = () => {
@@ -244,7 +272,7 @@ export default function ApplyForLeavePage() {
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (checkIsFormDirty()) {
+      if (!isReadOnly && checkIsFormDirty()) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -252,14 +280,16 @@ export default function ApplyForLeavePage() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [checkIsFormDirty]);
+  }, [checkIsFormDirty, isReadOnly]);
 
   const handleSimulateUpload = () => {
+    if (isReadOnly) return;
     setUploadedFile("medical_certificate.pdf");
   };
 
   const handleRemoveFile = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isReadOnly) return;
     setUploadedFile(null);
   };
 
@@ -273,60 +303,6 @@ export default function ApplyForLeavePage() {
     }, 800);
   };
 
-  const handleSubmitApplication = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!employeeName.trim()) {
-      window.alert("Please enter your full name.");
-      return;
-    }
-    if (!leaveType) {
-      window.alert("Please select a leave type.");
-      return;
-    }
-    if (!startDate || !endDate) {
-      window.alert("Please select both start and end dates.");
-      return;
-    }
-    if (new Date(endDate) < new Date(startDate)) {
-      window.alert("End date cannot be before start date.");
-      return;
-    }
-    if (!reason.trim()) {
-      window.alert("Please provide a reason for your leave request.");
-      return;
-    }
-
-    const typeMeta = LEAVE_TYPE_MAP[leaveType];
-    const newRequest: LeaveRequest = {
-      id: `req-${Date.now()}`,
-      name: employeeName.trim(),
-      role: employeeRole.trim() || "Employee",
-      initials: getInitials(employeeName),
-      avatarBg: pickAvatarBg(employeeName),
-      leaveType: typeMeta.label,
-      typeColor: typeMeta.typeColor,
-      dates: formatDateRange(startDate, endDate),
-      duration: calculateDuration(startDate, endDate),
-      status: "Pending",
-    };
-
-    const existing = getExistingRequests();
-    const updated = [newRequest, ...existing];
-    localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(updated));
-
-    clearDraft();
-    const emptyDraft = { ...DEFAULT_DRAFT };
-    setSavedSnapshot(emptyDraft);
-    applyDraft(emptyDraft);
-    setSubmitSuccess(true);
-
-    window.alert(
-      `Leave application submitted for ${newRequest.name}. It is now pending approval on the Leave Management dashboard.`,
-    );
-    router.push("/leave");
-  };
-
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-slate-50 p-6 md:p-8 flex items-center justify-center text-sm text-slate-500">
@@ -335,7 +311,18 @@ export default function ApplyForLeavePage() {
     );
   }
 
-  const isDirty = checkIsFormDirty();
+  const isDirty = !isReadOnly && checkIsFormDirty();
+  const activeSavedDraft = draftId ? getLeaveDraftById(draftId) : null;
+  const savedDraftExists = Boolean(activeSavedDraft);
+  const draftUpdatedLabel = draftId
+    ? getLeaveDraftUpdatedLabel(draftId)
+    : null;
+  const viewDraftEmpty = isViewDraft && !savedDraftExists;
+  const pageTitle = isViewDraft
+    ? "Saved Leave Draft"
+    : isNewApplication
+      ? "New Leave Application"
+      : "Continue Leave Application";
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8 space-y-6 text-slate-900">
@@ -348,28 +335,128 @@ export default function ApplyForLeavePage() {
           Leave Management
         </button>
         <span className="text-slate-300 font-normal">&gt;</span>
-        <span className="text-slate-500">New Application</span>
+        <span className="text-slate-500">
+          {isViewDraft
+            ? "Draft Preview"
+            : isNewApplication
+              ? "New Application"
+              : "Edit Draft"}
+        </span>
       </div>
 
-      <div className="space-y-1 pb-4">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-          Apply for Leave
-        </h1>
-        <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
-          Submit your request for time off. Save a draft to continue later, or
-          submit to add a pending request to the leave dashboard.
-        </p>
-        {isDirty && (
-          <p className="text-xs font-semibold text-amber-600">
-            Unsaved changes — save your draft before leaving this page.
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-slate-200 pb-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            {pageTitle}
+          </h1>
+          <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
+            {isViewDraft
+              ? "Read-only preview of your saved leave application. Edit or submit when you are ready."
+              : isNewApplication
+                ? "Start a fresh leave request. Save as draft to keep it, then start another application anytime from the dashboard."
+                : "Continue this saved application, or start a new one without losing your other drafts."}
           </p>
-        )}
-        {submitSuccess && (
-          <p className="text-xs font-semibold text-emerald-600">
-            Application submitted successfully.
-          </p>
-        )}
+          {!isReadOnly && isDirty && (
+            <p className="text-xs font-semibold text-amber-600">
+              Unsaved changes — save your draft before leaving this page.
+            </p>
+          )}
+          {!isReadOnly && savedDraftExists && !isDirty && (
+            <p className="text-xs font-semibold text-blue-600">
+              Saved draft restored
+              {draftUpdatedLabel ? ` (last updated ${draftUpdatedLabel})` : ""}.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isViewDraft && (
+            <>
+              <button
+                type="button"
+                onClick={handleEditDraft}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitApplication()}
+                disabled={viewDraftEmpty}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-[#0f172a] rounded-lg hover:bg-slate-800 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span>Submit Application</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            </>
+          )}
+          {!isReadOnly && (
+            <>
+              {savedDraftExists && (
+                <button
+                  type="button"
+                  onClick={handleViewDraft}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  View Saved Draft
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => attemptNavigation("/leave/apply")}
+                className="px-5 py-2.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-all active:scale-95"
+              >
+                New Application
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-all active:scale-95"
+              >
+                Save as Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitApplication()}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-[#0f172a] rounded-lg hover:bg-slate-800 cursor-pointer active:scale-95 transition-all"
+              >
+                <span>Submit Application</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {isViewDraft && !viewDraftEmpty && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <Eye className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-bold">Viewing saved draft</p>
+            <p className="text-xs text-amber-800 mt-0.5">
+              {draftUpdatedLabel
+                ? `Last saved ${draftUpdatedLabel}.`
+                : "This is a read-only preview of your saved application."}{" "}
+              Use Edit Draft to make changes, or Submit Application when ready.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {viewDraftEmpty && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          No saved draft found.{" "}
+          <button
+            type="button"
+            onClick={() => attemptNavigation("/leave/apply")}
+            className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+          >
+            Start a new application
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col space-y-6">
@@ -389,11 +476,24 @@ export default function ApplyForLeavePage() {
                   id="employeeName"
                   type="text"
                   required
+                  readOnly={isReadOnly}
                   value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
+                  onChange={(e) => {
+                    setEmployeeName(e.target.value);
+                    clearFieldError("employeeName");
+                  }}
                   placeholder="e.g., Elena Rodriguez"
-                  className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700"
+                  className={`w-full px-3.5 py-2.5 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 ${
+                    fieldErrors.employeeName
+                      ? "border-rose-300 focus:border-rose-500"
+                      : "border-slate-200"
+                  } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
                 />
+                {fieldErrors.employeeName && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.employeeName}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -401,16 +501,30 @@ export default function ApplyForLeavePage() {
                   htmlFor="employeeRole"
                   className="text-xs font-bold uppercase tracking-wider text-slate-400"
                 >
-                  Job Title
+                  Job Title *
                 </label>
                 <input
                   id="employeeRole"
                   type="text"
+                  required
+                  readOnly={isReadOnly}
                   value={employeeRole}
-                  onChange={(e) => setEmployeeRole(e.target.value)}
+                  onChange={(e) => {
+                    setEmployeeRole(e.target.value);
+                    clearFieldError("employeeRole");
+                  }}
                   placeholder="e.g., Product Designer"
-                  className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700"
+                  className={`w-full px-3.5 py-2.5 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 ${
+                    fieldErrors.employeeRole
+                      ? "border-rose-300 focus:border-rose-500"
+                      : "border-slate-200"
+                  } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
                 />
+                {fieldErrors.employeeRole && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.employeeRole}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -426,9 +540,17 @@ export default function ApplyForLeavePage() {
                   <select
                     id="leaveType"
                     required
+                    disabled={isReadOnly}
                     value={leaveType}
-                    onChange={(e) => setLeaveType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 cursor-pointer appearance-none font-semibold text-slate-700"
+                    onChange={(e) => {
+                      setLeaveType(e.target.value);
+                      clearFieldError("leaveType");
+                    }}
+                    className={`w-full px-3.5 py-2.5 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 cursor-pointer appearance-none font-semibold text-slate-700 ${
+                      fieldErrors.leaveType
+                        ? "border-rose-300 focus:border-rose-500"
+                        : "border-slate-200"
+                    } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
                   >
                     <option value="" disabled>
                       Select a leave category
@@ -442,17 +564,28 @@ export default function ApplyForLeavePage() {
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
+                {fieldErrors.leaveType && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.leaveType}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Urgency
+                  Urgency *
                 </span>
                 <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-lg h-[42px] items-center">
                   <button
                     type="button"
-                    onClick={() => setUrgency("Standard")}
-                    className={`py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    disabled={isReadOnly}
+                    onClick={() => {
+                      setUrgency("Standard");
+                      clearFieldError("urgency");
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-md transition-all ${
+                      isReadOnly ? "cursor-default" : "cursor-pointer"
+                    } ${
                       urgency === "Standard"
                         ? "bg-white text-slate-900 shadow-xs border border-slate-200/50"
                         : "text-slate-500 hover:text-slate-800"
@@ -462,8 +595,14 @@ export default function ApplyForLeavePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setUrgency("Urgent")}
-                    className={`py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    disabled={isReadOnly}
+                    onClick={() => {
+                      setUrgency("Urgent");
+                      clearFieldError("urgency");
+                    }}
+                    className={`py-1.5 text-xs font-bold rounded-md transition-all ${
+                      isReadOnly ? "cursor-default" : "cursor-pointer"
+                    } ${
                       urgency === "Urgent"
                         ? "bg-white text-rose-600 shadow-xs border border-slate-200/50"
                         : "text-slate-500 hover:text-slate-800"
@@ -472,6 +611,11 @@ export default function ApplyForLeavePage() {
                     Urgent
                   </button>
                 </div>
+                {fieldErrors.urgency && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.urgency}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -487,10 +631,24 @@ export default function ApplyForLeavePage() {
                   id="startDate"
                   type="date"
                   required
+                  readOnly={isReadOnly}
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 cursor-pointer"
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    clearFieldError("startDate");
+                    clearFieldError("endDate");
+                  }}
+                  className={`w-full px-3.5 py-2 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 cursor-pointer ${
+                    fieldErrors.startDate
+                      ? "border-rose-300 focus:border-rose-500"
+                      : "border-slate-200"
+                  } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
                 />
+                {fieldErrors.startDate && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.startDate}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -504,29 +662,56 @@ export default function ApplyForLeavePage() {
                   id="endDate"
                   type="date"
                   required
+                  readOnly={isReadOnly}
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 cursor-pointer"
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    clearFieldError("endDate");
+                  }}
+                  className={`w-full px-3.5 py-2 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 font-semibold text-slate-700 cursor-pointer ${
+                    fieldErrors.endDate
+                      ? "border-rose-300 focus:border-rose-500"
+                      : "border-slate-200"
+                  } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
                 />
+                {fieldErrors.endDate && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {fieldErrors.endDate}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="reason"
-                className="text-xs font-bold uppercase tracking-wider text-slate-400"
-              >
-                Reason for Leave *
-              </label>
+              <div className="flex items-baseline justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+                <label htmlFor="reason">Reason for Leave *</label>
+                <span className="text-[10px] text-slate-400 font-semibold lowercase">
+                  {reason.trim().length} / 2000 · min {VALIDATION_RULES.reasonMin}
+                </span>
+              </div>
               <textarea
                 id="reason"
                 required
+                readOnly={isReadOnly}
+                maxLength={2000}
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  clearFieldError("reason");
+                }}
                 placeholder="Briefly describe the reason for your leave request..."
                 rows={4}
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/20 resize-none font-semibold text-slate-700 leading-relaxed"
+                className={`w-full px-3.5 py-2 text-sm border rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/20 resize-none font-semibold text-slate-700 leading-relaxed ${
+                  fieldErrors.reason
+                    ? "border-rose-300 focus:border-rose-500"
+                    : "border-slate-200"
+                } ${isReadOnly ? "cursor-default bg-slate-50" : ""}`}
               />
+              {fieldErrors.reason && (
+                <p className="text-[11px] font-semibold text-rose-600">
+                  {fieldErrors.reason}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -535,7 +720,11 @@ export default function ApplyForLeavePage() {
               </span>
               <div
                 onClick={handleSimulateUpload}
-                className="border border-dashed border-slate-200 rounded-xl bg-slate-50/50 p-6 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                className={`border border-dashed border-slate-200 rounded-xl bg-slate-50/50 p-6 flex flex-col items-center justify-center text-center space-y-3 transition-colors ${
+                  isReadOnly
+                    ? "cursor-default"
+                    : "cursor-pointer hover:bg-slate-50"
+                }`}
               >
                 {!uploadedFile ? (
                   <>
@@ -544,55 +733,105 @@ export default function ApplyForLeavePage() {
                     </div>
                     <div className="space-y-1">
                       <h4 className="text-xs font-bold text-slate-800">
-                        Click to upload or drag and drop
+                        {isReadOnly
+                          ? "No supporting document attached"
+                          : "Click to upload or drag and drop"}
                       </h4>
-                      <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                        Medical certificates, travel docs (Max 10MB)
-                      </p>
+                      {!isReadOnly && (
+                        <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                          Medical certificates, travel docs (Max 10MB)
+                        </p>
+                      )}
                     </div>
                   </>
                 ) : (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-xs font-bold animate-in zoom-in-95 duration-200">
                     <span>{uploadedFile}</span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveFile}
-                      className="w-4 h-4 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 flex items-center justify-center font-bold text-[10px] cursor-pointer"
-                      title="Remove file"
-                    >
-                      ×
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="w-4 h-4 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 flex items-center justify-center font-bold text-[10px] cursor-pointer"
+                        title="Remove file"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 mt-4">
-              <button
-                type="button"
-                onClick={handleDiscardChanges}
-                className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-              >
-                Discard Unsaved Changes
-              </button>
+            {!isReadOnly && (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 mt-4">
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleDiscardChanges}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    Discard Unsaved Changes
+                  </button>
+                  {draftId && savedDraftExists && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteSavedDraft}
+                      className="text-xs font-bold text-rose-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      Delete Saved Draft
+                    </button>
+                  )}
+                </div>
 
-              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
+                  {savedDraftExists && (
+                    <button
+                      type="button"
+                      onClick={handleViewDraft}
+                      className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer transition-all active:scale-95"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      View Saved Draft
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-all active:scale-95"
+                  >
+                    Save as Draft
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-[#0f172a] rounded-lg hover:bg-slate-800 cursor-pointer active:scale-95 transition-all"
+                  >
+                    <span>Submit Application</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isViewDraft && !viewDraftEmpty && (
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
                 <button
                   type="button"
-                  onClick={handleSaveDraft}
-                  className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-all active:scale-95"
+                  onClick={handleEditDraft}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-all active:scale-95"
                 >
-                  Save as Draft
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Draft
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#0f172a] rounded-lg hover:bg-slate-800 cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => handleSubmitApplication()}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-[#0f172a] rounded-lg hover:bg-slate-800 cursor-pointer active:scale-95 transition-all"
                 >
                   <span>Submit Application</span>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                 </button>
               </div>
-            </div>
+            )}
           </form>
         </div>
 
