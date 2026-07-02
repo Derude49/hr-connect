@@ -1,18 +1,21 @@
+import Sidebar from "@/components/Sidebar";
+import Topbar from "@/components/Topbar";
+import AuthGuard from "@/components/AuthGuard";
 
-export default function RootLayout({
+export default function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={ `h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        
-        {children}
-        </body>
-    </html>
+    <AuthGuard>
+      <div className="flex">
+        <Sidebar />
+        <div className="flex-1">
+          <Topbar />
+          <main className="p-4 bg-gray-200">{children}</main>
+        </div>
+      </div>
+    </AuthGuard>
   );
 }
