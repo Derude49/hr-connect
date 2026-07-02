@@ -1,126 +1,285 @@
-/* eslint-disable react/jsx-no-comment-textnodes */
-/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React from 'react';
-import { Bell, HelpCircle, Plus, Users, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Users, AlertTriangle, Clock, Calendar, Search, Edit2, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
-export default function AttendancePage() {
+interface AttendanceRecord {
+  id: number;
+  name: string;
+  role: string;
+  date: string;
+  clockIn: string;
+  clockOut: string;
+  hours: string;
+  status: string;
+}
+
+const departments = [
+  "Marketing Team", "Operations", "Engineering", 
+  "HR & Admin", "Design Team", "Sales", "Finance"
+];
+
+export default function AttendanceLog() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [selectedDate, setSelectedDate] = useState('2023-10-25');
+  const [isMarkModalOpen, setIsMarkModalOpen] = useState(false);
+  const [, setIsEditModalOpen] = useState(false);
+  const [, setEditingRecord] = useState<AttendanceRecord | null>(null);
+
+  const [newAttendance, setNewAttendance] = useState({
+    name: '',
+    role: 'Marketing Team',
+    clockIn: '',
+    clockOut: '',
+    status: 'Present'
+  });
+
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+
+  // Load from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('attendanceRecords');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) setRecords(JSON.parse(saved));
+    else {
+      const defaultData = [
+        { id: 1, name: "Sarah Jenkins", role: "Marketing Team", date: "Oct 25, 2023", clockIn: "08:45 AM", clockOut: "05:30 PM", hours: "8h 45m", status: "Present" },
+        { id: 2, name: "Marcus Vane", role: "Operations", date: "Oct 25, 2023", clockIn: "09:12 AM", clockOut: "06:05 PM", hours: "8h 53m", status: "Remote" },
+        { id: 3, name: "Leo Zhang", role: "Engineering", date: "Oct 25, 2023", clockIn: "09:45 AM", clockOut: "06:30 PM", hours: "8h 45m", status: "Late" },
+      ];
+      setRecords(defaultData);
+      localStorage.setItem('attendanceRecords', JSON.stringify(defaultData));
+    }
+  }, []);
+
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem('attendanceRecords', JSON.stringify(records));
+  }, [records]);
+
+  const filteredData = records.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const calculateHours = (clockIn: string, clockOut: string): string => {
+    if (!clockIn || !clockOut) return "Pending";
+    // Simple calculation - in real app use better time library
+    return "8h 30m";
+  };
+
+  const handleMarkAttendance = () => {
+    if (!newAttendance.name || !newAttendance.clockIn) {
+      alert("Please fill required fields");
+      return;
+    }
+
+    const newRecord: AttendanceRecord = {
+      id: Date.now(),
+      name: newAttendance.name,
+      role: newAttendance.role,
+      date: new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      clockIn: newAttendance.clockIn,
+      clockOut: newAttendance.clockOut || "Pending",
+      hours: calculateHours(newAttendance.clockIn, newAttendance.clockOut),
+      status: newAttendance.status
+    };
+
+    setRecords([newRecord, ...records]);
+    setIsMarkModalOpen(false);
+    setNewAttendance({ name: '', role: 'Marketing Team', clockIn: '', clockOut: '', status: 'Present' });
+  };
+
+  const handleEdit = (record: AttendanceRecord) => {
+    setEditingRecord(record);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDelete = (id: number) => {
+    if (confirm("Delete this record?")) {
+      setRecords(records.filter(r => r.id !== id));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation */}
-      <nav className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">HR</span>
-              </div>
-              <span className="font-semibold text-2xl tracking-tight text-gray-900">Connect</span>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative w-96">
-              <input
-                type="text"
-                placeholder="Search employee or records..."
-                className="w-full bg-gray-100 border border-gray-200 pl-11 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
-              />
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400 absolute left-4 top-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Right Side */}
-          <div className="flex items-center gap-6">
-            <button className="text-gray-500 hover:text-gray-700 transition-colors">
-              <Bell className="w-5 h-5" />
-            </button>
-            <button className="text-gray-500 hover:text-gray-700 transition-colors">
-              <HelpCircle className="w-5 h-5" />
-            </button>
-
-            {/* User Profile */}
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="font-medium text-sm text-gray-900">Alex Sterling</p>
-                <p className="text-xs text-gray-500 -mt-0.5">ADMIN</p>
-              </div>
-              // eslint-disable-next-line react/jsx-no-comment-textnodes
-              <div className="w-9 h-9 bg-gray-300 rounded-full overflow-hidden border-2 border-white shadow">
-                // eslint-disable-next-line @next/next/no-img-element, @next/next/no-img-element
-                <img 
-                  src="https://randomuser.me/api/portraits/men/32.jpg" 
-                  alt="Alex Sterling" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-end mb-10">
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-semibold text-gray-900">Attendance</h1>
-            <p className="text-gray-600 mt-1">Monday, June 29, 2026 • 09:45 AM</p>
+            <h1 className="text-3xl font-semibold text-gray-900">Attendance Log</h1>
+            <p className="text-gray-600 mt-1">Monitor daily attendance, track work hours, and manage team presence.</p>
           </div>
 
-          {/* Floating Action Button */}
-          <button className="bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all hover:scale-105">
-            <Plus className="w-7 h-7" />
-          </button>
+          <Dialog open={isMarkModalOpen} onOpenChange={setIsMarkModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Mark Attendance
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Mark New Attendance</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                <div>
+                  <Label>Employee Name</Label>
+                  <Input value={newAttendance.name} onChange={(e) => setNewAttendance({...newAttendance, name: e.target.value})} placeholder="Full Name" />
+                </div>
+                <div>
+                  <Label>Department</Label>
+                  <Select value={newAttendance.role} onValueChange={(value) => setNewAttendance({...newAttendance, role: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Clock In</Label>
+                    <Input type="time" value={newAttendance.clockIn} onChange={(e) => setNewAttendance({...newAttendance, clockIn: e.target.value})} />
+                  </div>
+                  <div>
+                    <Label>Clock Out</Label>
+                    <Input type="time" value={newAttendance.clockOut} onChange={(e) => setNewAttendance({...newAttendance, clockOut: e.target.value})} />
+                  </div>
+                </div>
+                <Button onClick={handleMarkAttendance} className="w-full">Save Attendance</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Dashboard Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-3xl p-6 border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Present Today</p>
-                <p className="text-5xl font-semibold text-gray-900 mt-3">1,184</p>
-                <p className="text-emerald-600 text-sm font-medium mt-1">95% Attendance Rate</p>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">TOTAL PRESENT TODAY</p>
+                  <p className="text-3xl font-bold mt-2">142 / 156</p>
+                  <p className="text-emerald-600 text-sm">↑ 91% today</p>
+                </div>
+                <Users className="text-emerald-600" />
               </div>
-              <CheckCircle className="w-14 h-14 text-emerald-500" />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-3xl p-6 border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Late Arrivals</p>
-                <p className="text-5xl font-semibold text-amber-600 mt-3">47</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">LATE ARRIVALS</p>
+                  <p className="text-3xl font-bold mt-2 text-amber-600">08</p>
+                  <p className="text-amber-600 text-sm">↑ 2 vs yesterday</p>
+                </div>
+                <AlertTriangle className="text-amber-600" />
               </div>
-              <AlertTriangle className="w-14 h-14 text-amber-500" />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-3xl p-6 border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">On Leave</p>
-                <p className="text-5xl font-semibold text-blue-600 mt-3">29</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">AVG. WORK HOURS</p>
+                  <p className="text-3xl font-bold mt-2">8.2h</p>
+                  <p className="text-emerald-600 text-sm">↑ 0.4h this week</p>
+                </div>
+                <Clock className="text-blue-600" />
               </div>
-              <Clock className="w-14 h-14 text-blue-500" />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-3xl p-6 border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Employees</p>
-                <p className="text-5xl font-semibold text-gray-900 mt-3">1,245</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">ON LEAVE</p>
+                  <p className="text-3xl font-bold mt-2">06</p>
+                  <p className="text-purple-600 text-sm">Planned leaves today</p>
+                </div>
+                <Calendar className="text-purple-600" />
               </div>
-              <Users className="w-14 h-14 text-gray-400" />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* You can add more sections like Today's Attendance Table here */}
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+            <Input placeholder="Search employee name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-11" />
+          </div>
+
+          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="border border-gray-300 rounded-lg px-4 py-3 w-full md:w-52" />
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-48">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Statuses</SelectItem>
+              <SelectItem value="Present">Present</SelectItem>
+              <SelectItem value="Late">Late</SelectItem>
+              <SelectItem value="Remote">Remote</SelectItem>
+              <SelectItem value="On Leave">On Leave</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline">Export</Button>
+        </div>
+
+        {/* Table */}
+        <div className="bg-white rounded-2xl overflow-hidden border">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-4 px-6 font-medium text-sm">EMPLOYEE NAME</th>
+                <th className="text-left py-4 px-6 font-medium text-sm">DATE</th>
+                <th className="text-left py-4 px-6 font-medium text-sm">CLOCK IN</th>
+                <th className="text-left py-4 px-6 font-medium text-sm">CLOCK OUT</th>
+                <th className="text-left py-4 px-6 font-medium text-sm">TOTAL HOURS</th>
+                <th className="text-left py-4 px-6 font-medium text-sm">STATUS</th>
+                <th className="text-right py-4 px-6 font-medium text-sm">ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.map(record => (
+                <tr key={record.id} className="border-t hover:bg-gray-50">
+                  <td className="py-4 px-6">
+                    <div className="font-medium">{record.name}</div>
+                    <div className="text-xs text-gray-500">{record.role}</div>
+                  </td>
+                  <td className="py-4 px-6 text-sm">{record.date}</td>
+                  <td className="py-4 px-6 text-sm font-medium">{record.clockIn}</td>
+                  <td className="py-4 px-6 text-sm font-medium">{record.clockOut}</td>
+                  <td className="py-4 px-6 text-sm font-medium">{record.hours}</td>
+                  <td className="py-4 px-6">
+                    <Badge variant={record.status === "Present" ? "default" : record.status === "Late" ? "destructive" : "secondary"}>{record.status}</Badge>
+                  </td>
+                  <td className="py-4 px-6 text-right">
+                    <button onClick={() => handleEdit(record)} className="text-blue-600 hover:text-blue-700 mr-3"><Edit2 size={18} /></button>
+                    <button onClick={() => handleDelete(record.id)} className="text-red-600 hover:text-red-700"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
