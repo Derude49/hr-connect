@@ -13,7 +13,7 @@ export default function DashboardLayout({
         <Sidebar />
         <div className="flex-1">
           <Topbar />
-          <main className="p-8">{children}</main>
+          <main className="p-4 bg-gray-200">{children}</main>
         </div>
       </div>
     </AuthGuard>

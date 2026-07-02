@@ -1,5 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
-/* eslint-disable react/jsx-no-comment-textnodes */
+
 "use client";
 
 import React, { useState } from 'react';
