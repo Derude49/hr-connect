@@ -54,13 +54,13 @@ export default function PerformanceReviewsListPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8 space-y-6 text-slate-900">
-      <Link
+      {/* <Link
         href="/performance"
         className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer group w-fit"
       >
         <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
         <span>Back to performance overview</span>
-      </Link>
+      </Link> */}
 
       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
         <Link
