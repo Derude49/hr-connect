@@ -15,39 +15,17 @@ import {
   ChevronLeft,
   ChevronRight,
   PlusCircle,
-  ChevronDown, // Imported for the dropdown indicator
+  ChevronDown,
 } from "lucide-react";
-
-const INITIAL_GOALS_DATA = [
-  {
-    id: "goal-1",
-    status: "ACHIEVED",
-    title: "Increase System Uptime to 99.9%",
-    description: "Core infrastructure optimization project for Q3.",
-    progress: 100,
-  },
-  {
-    id: "goal-2",
-    status: "IN PROGRESS",
-    title: "Automated Payroll Integration",
-    description: "Migrate existing manual processes to the new API suite.",
-    progress: 65,
-  },
-  {
-    id: "goal-3",
-    status: "OVERDUE",
-    title: "Security Audit Completion",
-    description: "Bi-annual security check and vulnerability assessment.",
-    progress: 40,
-  },
-  {
-    id: "goal-4",
-    status: "IN PROGRESS",
-    title: "Onboarding Refresh",
-    description: "Redesigning the first-week experience for new hires.",
-    progress: 12,
-  },
-];
+import {
+  DEFAULT_EMPLOYEES,
+  DepartmentGoal,
+  getEmployees,
+  getLeaderboardRows,
+  initializeGoals,
+  migrateLegacyReviewStorage,
+  saveGoals,
+} from "@/lib/performance-store";
 
 const INITIAL_FEEDBACK_DATA = [
   {
@@ -79,38 +57,7 @@ const INITIAL_FEEDBACK_DATA = [
   },
 ];
 
-const LEADERBOARD_DATA = [
-  {
-    id: "emp-1",
-    name: "Jonathan Lee",
-    role: "Senior Frontend Engineer",
-    score: 4.8,
-    progress: 92,
-    lastReview: "Aug 05, 2024",
-    initials: "JL",
-    avatarBg: "bg-blue-100 text-blue-800",
-  },
-  {
-    id: "emp-2",
-    name: "Sofia Mendez",
-    role: "Product Designer",
-    score: 4.5,
-    progress: 85,
-    lastReview: "Jul 28, 2024",
-    initials: "SM",
-    avatarBg: "bg-purple-100 text-purple-800",
-  },
-  {
-    id: "emp-3",
-    name: "David Chen",
-    role: "Data Scientist",
-    score: 3.9,
-    progress: 60,
-    lastReview: "Aug 10, 2024",
-    initials: "DC",
-    avatarBg: "bg-emerald-100 text-emerald-800",
-  },
-];
+type LeaderboardRow = ReturnType<typeof getLeaderboardRows>[number];
 
 // 1. DATA DICTIONARY: Multi-Quarter Datasets
 const QUARTER_DATA_MAP: Record<string, { label: string; value: number }[]> = {
@@ -145,13 +92,17 @@ const QUARTER_DATA_MAP: Record<string, { label: string; value: number }[]> = {
 };
 
 export default function PerformancePage() {
-  const [goals, setGoals] = useState(INITIAL_GOALS_DATA);
+  const [goals, setGoals] = useState<DepartmentGoal[]>([]);
+  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newStatus, setNewStatus] = useState("IN PROGRESS");
+  const [newStatus, setNewStatus] = useState<DepartmentGoal["status"]>("IN PROGRESS");
   const [newProgress, setNewProgress] = useState(0);
+  const [newAssignedEmployeeIds, setNewAssignedEmployeeIds] = useState<string[]>([
+    DEFAULT_EMPLOYEES[0].id,
+  ]);
 
   const [feedbacks, setFeedbacks] = useState(INITIAL_FEEDBACK_DATA);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -159,9 +110,9 @@ export default function PerformancePage() {
   const [newFeedRole, setNewFeedbackRole] = useState("Peer");
   const [newFeedMessage, setNewFeedbackMessage] = useState("");
 
-  const [selectedEmployee, setSelectedEmployee] = useState<
-    (typeof LEADERBOARD_DATA)[0] | null
-  >(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<LeaderboardRow | null>(
+    null,
+  );
 
   const [animate, setAnimate] = useState(false);
 
@@ -175,16 +126,14 @@ export default function PerformancePage() {
     ...activeRatingsData.map((item) => item.value),
   );
 
+  const refreshPerformanceData = () => {
+    migrateLegacyReviewStorage();
+    setGoals(initializeGoals());
+    setLeaderboardRows(getLeaderboardRows());
+  };
+
   useEffect(() => {
-    const savedGoals = localStorage.getItem("hr_connect_goals");
-    if (savedGoals) {
-      setGoals(JSON.parse(savedGoals));
-    } else {
-      localStorage.setItem(
-        "hr_connect_goals",
-        JSON.stringify(INITIAL_GOALS_DATA),
-      );
-    }
+    refreshPerformanceData();
 
     const savedFeedback = localStorage.getItem("hr_connect_feedback");
     if (savedFeedback) {
@@ -200,7 +149,13 @@ export default function PerformancePage() {
       setAnimate(true);
     }, 50);
 
-    return () => clearTimeout(animationTimer);
+    const handleFocus = () => refreshPerformanceData();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearTimeout(animationTimer);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleBoostProgress = (targetId: string) => {
@@ -219,33 +174,49 @@ export default function PerformancePage() {
     });
 
     setGoals(updatedGoals);
-    localStorage.setItem("hr_connect_goals", JSON.stringify(updatedGoals));
+    saveGoals(updatedGoals);
+    setLeaderboardRows(getLeaderboardRows());
   };
 
   const handleCreateGoal = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newTitle.trim() || !newDescription.trim()) return;
+    if (newAssignedEmployeeIds.length === 0) {
+      window.alert("Assign at least one employee to this goal.");
+      return;
+    }
 
-    const newGoalObj = {
+    const newGoalObj: DepartmentGoal = {
       id: `goal-${Date.now()}`,
       status: newStatus,
       title: newTitle,
       description: newDescription,
       progress: newProgress,
+      assignedEmployeeIds: newAssignedEmployeeIds,
     };
 
     const updatedGoalsList = [...goals, newGoalObj];
 
     setGoals(updatedGoalsList);
-    localStorage.setItem("hr_connect_goals", JSON.stringify(updatedGoalsList));
+    saveGoals(updatedGoalsList);
+    setLeaderboardRows(getLeaderboardRows());
 
     setNewTitle("");
     setNewDescription("");
     setNewStatus("IN PROGRESS");
     setNewProgress(0);
+    setNewAssignedEmployeeIds([DEFAULT_EMPLOYEES[0].id]);
 
     setIsModalOpen(false);
+  };
+
+  const toggleNewGoalAssignee = (employeeId: string) => {
+    setNewAssignedEmployeeIds((prev) =>
+      prev.includes(employeeId)
+        ? prev.filter((id) => id !== employeeId)
+        : [...prev, employeeId],
+    );
   };
 
   const handleCreateFeedback = (e: React.FormEvent) => {
@@ -538,6 +509,9 @@ export default function PerformancePage() {
               {goals.map((goal) => {
                 const isOverdue = goal.status === "OVERDUE";
                 const isAchieved = goal.status === "ACHIEVED";
+                const assignees = getEmployees().filter((employee) =>
+                  goal.assignedEmployeeIds.includes(employee.id),
+                );
 
                 const badgeClasses = isOverdue
                   ? "bg-rose-100 text-rose-700"
@@ -589,12 +563,21 @@ export default function PerformancePage() {
                       </div>
                       <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                         <div className="flex -space-x-1.5">
-                          <div className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold text-slate-600">
-                            EM
-                          </div>
-                          <div className="w-5 h-5 rounded-full bg-slate-300 border border-white flex items-center justify-center text-[8px] font-bold text-slate-700">
-                            DN
-                          </div>
+                          {assignees.length > 0 ? (
+                            assignees.slice(0, 4).map((employee) => (
+                              <div
+                                key={employee.id}
+                                title={employee.name}
+                                className={`w-5 h-5 rounded-full border border-white flex items-center justify-center text-[8px] font-bold ${employee.avatarBg}`}
+                              >
+                                {employee.initials}
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-slate-400">
+                              Unassigned
+                            </span>
+                          )}
                         </div>
                         <span>
                           {goal.progress}%{" "}
@@ -705,7 +688,7 @@ export default function PerformancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {LEADERBOARD_DATA.map((row) => {
+              {leaderboardRows.map((row) => {
                 const isHigh = row.score >= 4.5;
                 const scoreBadgeClass = isHigh
                   ? "bg-blue-50 text-blue-700 border-blue-100"
@@ -760,11 +743,27 @@ export default function PerformancePage() {
                         >
                           Details
                         </button>
+                        {row.reviewStatus === "Draft Saved" && (
+                          <Link
+                            href={`/performance/review?employee=${row.id}&mode=view`}
+                            className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+                          >
+                            View Draft
+                          </Link>
+                        )}
+                        {row.reviewStatus === "Submitted" && (
+                          <Link
+                            href={`/performance/review?employee=${row.id}&mode=final`}
+                            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                          >
+                            View Submission
+                          </Link>
+                        )}
                         <Link
                           href={`/performance/review?employee=${row.id}`}
                           className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
                         >
-                          Review
+                          {row.reviewStatus === "Not Started" ? "Review" : "Continue"}
                         </Link>
                       </div>
                     </td>
@@ -776,7 +775,9 @@ export default function PerformancePage() {
         </div>
 
         <div className="p-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
-          <span>Showing 1-3 of 12 employees</span>
+          <span>
+            Showing 1-{leaderboardRows.length} of {leaderboardRows.length} employees
+          </span>
           <div className="flex items-center gap-1.5">
             <button className="p-1 border border-slate-200 bg-white rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer">
               <ChevronLeft className="w-4 h-4" />
@@ -832,7 +833,9 @@ export default function PerformancePage() {
                   </label>
                   <select
                     value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
+                    onChange={(e) =>
+                      setNewStatus(e.target.value as DepartmentGoal["status"])
+                    }
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 cursor-pointer"
                   >
                     <option value="IN PROGRESS">IN PROGRESS</option>
@@ -861,6 +864,28 @@ export default function PerformancePage() {
                     }
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Assigned Employees *
+                </label>
+                <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-lg p-3 space-y-2">
+                  {getEmployees().map((employee) => (
+                    <label
+                      key={employee.id}
+                      className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newAssignedEmployeeIds.includes(employee.id)}
+                        onChange={() => toggleNewGoalAssignee(employee.id)}
+                        className="rounded border-slate-300"
+                      />
+                      <span>{employee.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
@@ -1018,12 +1043,32 @@ export default function PerformancePage() {
               >
                 Close
               </button>
+              {selectedEmployee.reviewStatus === "Draft Saved" && (
+                <Link
+                  href={`/performance/review?employee=${selectedEmployee.id}&mode=view`}
+                  onClick={() => setSelectedEmployee(null)}
+                  className="px-4 py-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg cursor-pointer active:scale-95 transition-all"
+                >
+                  View Draft
+                </Link>
+              )}
+              {selectedEmployee.reviewStatus === "Submitted" && (
+                <Link
+                  href={`/performance/review?employee=${selectedEmployee.id}&mode=final`}
+                  onClick={() => setSelectedEmployee(null)}
+                  className="px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg cursor-pointer active:scale-95 transition-all"
+                >
+                  View Submission
+                </Link>
+              )}
               <Link
                 href={`/performance/review?employee=${selectedEmployee.id}`}
                 onClick={() => setSelectedEmployee(null)}
                 className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer active:scale-95 transition-all"
               >
-                Conduct Review
+                {selectedEmployee.reviewStatus === "Not Started"
+                  ? "Conduct Review"
+                  : "Continue Review"}
               </Link>
             </div>
           </div>

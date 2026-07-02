@@ -1,48 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Search,
   Trash2,
   Plus,
+  Users,
 } from "lucide-react";
-
-const INITIAL_GOALS_DATA = [
-  {
-    id: "goal-1",
-    status: "ACHIEVED",
-    title: "Increase System Uptime to 99.9%",
-    description: "Core infrastructure optimization project for Q3.",
-    progress: 100,
-  },
-  {
-    id: "goal-2",
-    status: "IN PROGRESS",
-    title: "Automated Payroll Integration",
-    description: "Migrate existing manual processes to the new API suite.",
-    progress: 65,
-  },
-  {
-    id: "goal-3",
-    status: "OVERDUE",
-    title: "Security Audit Completion",
-    description: "Bi-annual security check and vulnerability assessment.",
-    progress: 40,
-  },
-  {
-    id: "goal-4",
-    status: "IN PROGRESS",
-    title: "Onboarding Refresh",
-    description: "Redesigning the first-week experience for new hires.",
-    progress: 12,
-  },
-];
+import {
+  assignEmployeeToGoal,
+  DepartmentGoal,
+  getEmployees,
+  initializeGoals,
+  migrateLegacyReviewStorage,
+  saveGoals,
+  unassignEmployeeFromGoal,
+} from "@/lib/performance-store";
 
 export default function GoalsPage() {
-  const [goals, setGoals] = useState(INITIAL_GOALS_DATA);
-
+  const [goals, setGoals] = useState<DepartmentGoal[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("ALL");
   const [animate, setAnimate] = useState(false);
@@ -50,56 +27,80 @@ export default function GoalsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newStatus, setNewStatus] = useState("IN PROGRESS");
+  const [newStatus, setNewStatus] = useState<DepartmentGoal["status"]>("IN PROGRESS");
   const [newProgress, setNewProgress] = useState(0);
+  const [newAssignedEmployeeIds, setNewAssignedEmployeeIds] = useState<string[]>([
+    getEmployees()[0]?.id ?? "emp-1",
+  ]);
+
+  const employees = getEmployees();
+
+  const refreshGoals = () => {
+    migrateLegacyReviewStorage();
+    setGoals(initializeGoals());
+  };
 
   useEffect(() => {
-    const savedGoals = localStorage.getItem("hr_connect_goals");
-    if (savedGoals) {
-      setGoals(JSON.parse(savedGoals));
-    } else {
-      localStorage.setItem(
-        "hr_connect_goals",
-        JSON.stringify(INITIAL_GOALS_DATA),
-      );
-    }
-
-    const timer = setTimeout(() => {
-      setAnimate(true);
-    }, 50);
-    return () => clearTimeout(timer);
+    refreshGoals();
+    const timer = setTimeout(() => setAnimate(true), 50);
+    const handleFocus = () => refreshGoals();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleDeleteGoal = (targetId: string) => {
     const updated = goals.filter((goal) => goal.id !== targetId);
     setGoals(updated);
-    localStorage.setItem("hr_connect_goals", JSON.stringify(updated));
+    saveGoals(updated);
   };
 
   const handleCreateGoal = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newTitle.trim() || !newDescription.trim()) return;
+    if (newAssignedEmployeeIds.length === 0) {
+      window.alert("Assign at least one employee to this goal.");
+      return;
+    }
 
-    const newGoalObj = {
+    const newGoalObj: DepartmentGoal = {
       id: `goal-${Date.now()}`,
       status: newStatus,
       title: newTitle,
       description: newDescription,
       progress: newProgress,
+      assignedEmployeeIds: newAssignedEmployeeIds,
     };
 
     const updatedGoalsList = [...goals, newGoalObj];
-
     setGoals(updatedGoalsList);
-    localStorage.setItem("hr_connect_goals", JSON.stringify(updatedGoalsList));
+    saveGoals(updatedGoalsList);
 
     setNewTitle("");
     setNewDescription("");
     setNewStatus("IN PROGRESS");
     setNewProgress(0);
-
+    setNewAssignedEmployeeIds([employees[0]?.id ?? "emp-1"]);
     setIsModalOpen(false);
+  };
+
+  const toggleAssignee = (goalId: string, employeeId: string, isAssigned: boolean) => {
+    const updated =
+      isAssigned
+        ? unassignEmployeeFromGoal(goalId, employeeId)
+        : assignEmployeeToGoal(goalId, employeeId);
+    setGoals(updated);
+  };
+
+  const toggleNewGoalAssignee = (employeeId: string) => {
+    setNewAssignedEmployeeIds((prev) =>
+      prev.includes(employeeId)
+        ? prev.filter((id) => id !== employeeId)
+        : [...prev, employeeId],
+    );
   };
 
   const filteredGoals = goals.filter((goal) => {
@@ -114,16 +115,6 @@ export default function GoalsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8 space-y-6 text-slate-900">
-      {/* <div className="flex items-center">
-        <Link
-          href="/performance"
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer group"
-        >
-          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-          <span>Back to performance overview</span>
-        </Link>
-      </div> */}
-
       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 -mt-2">
         <Link
           href="/performance"
@@ -141,7 +132,8 @@ export default function GoalsPage() {
             Department Goals Directory
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Manage and audit all operational performance objectives.
+            Manage goals, progress, and employee assignments synced across the
+            performance dashboard and review forms.
           </p>
         </div>
 
@@ -206,49 +198,77 @@ export default function GoalsPage() {
             return (
               <div
                 key={goal.id}
-                className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:border-slate-200 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-200"
+                className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-5 hover:border-slate-200 transition-colors"
               >
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${badgeClasses}`}
-                    >
-                      {goal.status}
-                    </span>
-                    <h3 className="font-bold text-sm tracking-tight text-slate-800">
-                      {goal.title}
-                    </h3>
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${badgeClasses}`}
+                      >
+                        {goal.status}
+                      </span>
+                      <h3 className="font-bold text-sm tracking-tight text-slate-800">
+                        {goal.title}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-xl">
+                      {goal.description}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-xl">
-                    {goal.description}
-                  </p>
-                </div>
 
-                <div className="w-full sm:w-56 space-y-2">
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-1000 ease-out ${progressBgClass}`}
-                      style={{ width: `${animate ? goal.progress : 0}%` }}
-                    />
+                  <div className="w-full lg:w-56 space-y-2">
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-1000 ease-out ${progressBgClass}`}
+                        style={{ width: `${animate ? goal.progress : 0}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-500 text-right">
+                      {goal.progress}% complete
+                    </div>
                   </div>
-                  <div className="text-[11px] font-bold text-slate-500 text-right">
-                    {goal.progress}%{" "}
-                    {isOverdue
-                      ? "- Delayed"
-                      : isAchieved
-                        ? "Complete"
-                        : "Complete"}
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-end border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100">
                   <button
                     onClick={() => handleDeleteGoal(goal.id)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer active:scale-90"
+                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer active:scale-90 self-start"
                     title="Delete goal"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>
+                      Assigned Employees ({goal.assignedEmployeeIds.length})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {employees.map((employee) => {
+                      const isAssigned = goal.assignedEmployeeIds.includes(
+                        employee.id,
+                      );
+
+                      return (
+                        <button
+                          key={employee.id}
+                          type="button"
+                          onClick={() =>
+                            toggleAssignee(goal.id, employee.id, isAssigned)
+                          }
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md border transition-colors cursor-pointer ${
+                            isAssigned
+                              ? "bg-blue-50 text-blue-700 border-blue-100"
+                              : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {employee.initials} · {employee.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             );
@@ -268,7 +288,7 @@ export default function GoalsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-xl border border-slate-100 shadow-xl overflow-hidden flex flex-col p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-md rounded-xl border border-slate-100 shadow-xl overflow-hidden flex flex-col p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900">
               Create New Goal
             </h3>
@@ -309,7 +329,9 @@ export default function GoalsPage() {
                   </label>
                   <select
                     value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
+                    onChange={(e) =>
+                      setNewStatus(e.target.value as DepartmentGoal["status"])
+                    }
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50 cursor-pointer"
                   >
                     <option value="IN PROGRESS">IN PROGRESS</option>
@@ -338,6 +360,28 @@ export default function GoalsPage() {
                     }
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50/50"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Assigned Employees * (minimum 1)
+                </label>
+                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-3 space-y-2">
+                  {employees.map((employee) => (
+                    <label
+                      key={employee.id}
+                      className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newAssignedEmployeeIds.includes(employee.id)}
+                        onChange={() => toggleNewGoalAssignee(employee.id)}
+                        className="rounded border-slate-300"
+                      />
+                      <span>{employee.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
