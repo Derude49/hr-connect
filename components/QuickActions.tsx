@@ -7,7 +7,7 @@ const actions = [
   { label: "Add Employee", icon: UserPlus, href: "/employees/onboarding" },
   { label: "Post Job", icon: Briefcase, href: null },
   { label: "Run Payroll", icon: FileText, href: "/payroll" },
-  { label: "Reports", icon: BarChart3, href: null },
+  { label: "Reports", icon: BarChart3, href: "/performance" },
 ];
 
 export default function QuickActions() {

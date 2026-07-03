@@ -74,7 +74,7 @@ function handleLogout() {
       <div className="p-4">
         <button
         onClick={handleLogout}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-semibold text-slate-900 hover:bg-red-50 hover:text-red-600 transition"
+        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-semibold text-slate-900 hover:bg-red-50 hover:text-red-600 transition"
         >
           <LogOut className="h-4 w-4" />
           Logout
