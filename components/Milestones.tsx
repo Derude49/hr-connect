@@ -15,8 +15,8 @@ const milestones = [
 
 export default function Milestones() {
   return (
-    <div className="rounded-xl bg-slate-900 p-6 text-white">
-      <h2 className="mb-4 text-lg font-bold">Upcoming Milestones</h2>
+    <div className="rounded-xl border border-slate-800/80 bg-slate-900 p-6 text-white shadow-sm">
+      <h2 className="mb-4 text-base font-bold tracking-tight">Upcoming Milestones</h2>
       <div className="space-y-4">
         {milestones.map(({ name, detail, icon: Icon }) => (
           <div key={name} className="flex items-center justify-between">
@@ -31,7 +31,7 @@ export default function Milestones() {
           </div>
         ))}
       </div>
-      <button className="mt-5 w-full rounded-lg bg-slate-800 py-2.5 text-sm font-semibold">
+      <button className="mt-5 w-full rounded-lg bg-slate-800 py-2.5 text-sm font-semibold hover:bg-slate-700">
         Schedule Wishes
       </button>
     </div>

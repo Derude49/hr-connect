@@ -12,8 +12,6 @@ import {
   LineChart,
   Settings,
   LogOut,
-  Menu,
-  X,
 } from "lucide-react";
 
 const navItems = [
@@ -30,19 +28,19 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-function handleLogout() {
-  localStorage.removeItem("hrConnectSession");
-  router.push("/");
-}
+  function handleLogout() {
+    localStorage.removeItem("hrConnectSession");
+    router.push("/");
+  }
 
   return (
-    <aside className="flex h-screen w-72 flex-col justify-between bg-slate-900 text-slate-300">
-      <div>
-        <div className="flex items-center gap-3 px-6 py-6">
+    <aside className="flex w-full flex-col justify-between bg-slate-900 text-slate-300 lg:h-screen lg:w-72">
+      <div className="min-w-0">
+        <div className="flex items-center gap-3 px-4 py-4 sm:px-6 lg:py-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
             <LayoutGrid className="h-5 w-5 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-lg font-semibold text-white">HR Portal</p>
             <p className="text-xs tracking-wide text-slate-400">
               ENTERPRISE ADMIN
@@ -50,14 +48,14 @@ function handleLogout() {
           </div>
         </div>
 
-        <nav className="mt-2 flex flex-col gap-1 px-3">
+        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:mt-2 lg:flex-col lg:overflow-visible lg:pb-0">
           {navItems.map(({ label, icon: Icon, href }) => {
             const isActive = pathname === href;
             return (
               <Link
                 key={label}
                 href={href}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition ${
+                className={`flex shrink-0 items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition ${
                   isActive
                     ? "bg-blue-600 text-white"
                     : "text-slate-300 hover:bg-slate-800"
@@ -71,10 +69,10 @@ function handleLogout() {
         </nav>
       </div>
       
-      <div className="p-4">
+      <div className="border-t border-slate-800 p-3 lg:border-t-0 lg:p-4">
         <button
         onClick={handleLogout}
-        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-semibold text-slate-900 hover:bg-red-50 hover:text-red-600 transition"
+        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-semibold text-slate-900 transition hover:bg-rose-50 hover:text-rose-600"
         >
           <LogOut className="h-4 w-4" />
           Logout

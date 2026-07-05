@@ -191,7 +191,7 @@ useEffect(() => {
 
           <Dialog open={isMarkModalOpen} onOpenChange={setIsMarkModalOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-6 py-2.5 text-base font-medium">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-6 py-2.5 text-base font-medium">
                 <Plus className="w-5 h-5" />
                 Mark Attendance
               </Button>
@@ -216,7 +216,7 @@ useEffect(() => {
         </SelectTrigger>
         <SelectContent
           position="popper"
-          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto"
+          className="z-200 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto"
         >
           {employeeList.map(emp => (
             <SelectItem
@@ -248,7 +248,7 @@ useEffect(() => {
         </SelectTrigger>
         <SelectContent
           position="popper"
-          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg"
+          className="z-200 bg-white border border-gray-200 rounded-xl shadow-lg"
         >
           {departments.map(dept => (
             <SelectItem
@@ -272,7 +272,7 @@ useEffect(() => {
         </SelectTrigger>
         <SelectContent
           position="popper"
-          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg"
+          className="z-200 bg-white border border-gray-200 rounded-xl shadow-lg"
         >
           <SelectItem value="Present" className="cursor-pointer hover:bg-gray-50 rounded-lg">✅ Present</SelectItem>
           <SelectItem value="Late" className="cursor-pointer hover:bg-gray-50 rounded-lg">⏰ Late</SelectItem>
@@ -321,12 +321,12 @@ useEffect(() => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
+        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center bg-white p-4 rounded-lg border border-slate-100">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input placeholder="Search employee name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-11 h-11" />
+            <Input placeholder="Search employee name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-11" />
           </div>
-          <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full md:w-52 h-11" />
+          <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full md:w-52" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full md:w-48 h-11">
               <SelectValue placeholder="All Statuses" />
@@ -342,7 +342,7 @@ useEffect(() => {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-2xl overflow-hidden border shadow-sm">
+        <div className="bg-white rounded-md overflow-hidden shadow-2xl border border-gray-200">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>

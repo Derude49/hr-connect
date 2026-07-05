@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Check, Camera } from "lucide-react";
 import Link from "next/link";
-import Select from "react-select";
 import { Employee } from "@/lib/mock-data";
-import { saveEmployee } from "@/lib/storage";
+import {
+  clearOnboardingDraft,
+  getStoredOnboardingDraft,
+  saveEmployee,
+  saveOnboardingDraft,
+} from "@/lib/storage";
 
 // ── Nationality data ──────────────────────────────────────────────
 const NATIONALITIES = [
@@ -182,6 +186,21 @@ const steps = [
   { number: 3, label: "Contact & Address", tag: "VERIFICATION" },
 ];
 
+const DEFAULT_ONBOARDING_DATA: OnboardingData = {
+  fullName: "",
+  gender: "",
+  dateOfBirth: "",
+  nationality: "",
+  phoneCode: "+254",
+  jobTitle: "",
+  department: "",
+  employmentType: "",
+  startDate: "",
+  email: "",
+  phone: "",
+  address: "",
+};
+
 // ── Email validator ───────────────────────────────────────────────
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -193,6 +212,7 @@ export default function OnboardingPage() {
   const [emailError, setEmailError] = useState("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState("");
+  const [isDraftHydrated, setIsDraftHydrated] = useState(false);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -211,20 +231,18 @@ export default function OnboardingPage() {
     reader.readAsDataURL(file);
   }
 
-  const [data, setData] = useState<OnboardingData>({
-    fullName: "",
-    gender: "",
-    dateOfBirth: "",
-    nationality: "",
-    phoneCode: "+254",
-    jobTitle: "",
-    department: "",
-    employmentType: "",
-    startDate: "",
-    email: "",
-    phone: "",
-    address: "",
-  });
+  const [data, setData] = useState<OnboardingData>(DEFAULT_ONBOARDING_DATA);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setData(getStoredOnboardingDraft(DEFAULT_ONBOARDING_DATA));
+    setIsDraftHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDraftHydrated) return;
+    saveOnboardingDraft(data);
+  }, [data, isDraftHydrated]);
 
   function update(field: keyof OnboardingData, value: string) {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -284,8 +302,13 @@ export default function OnboardingPage() {
         status: "Active",
         mobilePhone: `${data.phoneCode}${data.phone}`,
         nationality: data.nationality,
+        dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
+        mailingAddress: data.address,
+        joinedDate: data.startDate,
       };
       saveEmployee(newEmployee);
+      clearOnboardingDraft();
       alert(`Employee "${data.fullName}" onboarded successfully!`);
       router.push("/employees");
     }
@@ -296,11 +319,12 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="grid grid-cols-[280px_1fr] overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="min-h-screen bg-slate-50 p-6 text-slate-900 md:p-8">
+    <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm lg:grid-cols-[280px_1fr]">
       {/* Sidebar steps */}
-      <div className="flex flex-col justify-between border-r border-slate-100 bg-slate-50 p-6">
+      <div className="flex flex-col justify-between border-b border-slate-100 bg-slate-50 p-5 lg:border-b-0 lg:border-r lg:p-6">
         <div>
-          <h2 className="mb-6 text-xl font-bold">Onboarding</h2>
+          <h2 className="mb-6 text-3xl font-bold tracking-tight text-slate-900 lg:text-xl">Onboarding</h2>
           <div className="space-y-0">
             {steps.map((s, i) => (
               <div key={s.number} className="flex gap-3">
@@ -310,7 +334,7 @@ export default function OnboardingPage() {
                       s.number === step
                         ? "bg-blue-600 text-white"
                         : s.number < step
-                        ? "bg-green-600 text-white"
+                        ? "bg-emerald-600 text-white"
                         : "bg-slate-200 text-slate-500"
                     }`}
                   >
@@ -328,22 +352,22 @@ export default function OnboardingPage() {
             ))}
           </div>
         </div>
-        <div className="rounded-lg bg-blue-50 p-4">
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
           <p className="text-sm font-semibold text-blue-700">Auto-save is enabled</p>
           <p className="mt-1 text-xs text-blue-600">Your progress is being saved as you type.</p>
         </div>
       </div>
 
       {/* Form content */}
-      <div className="p-8">
+      <div className="p-5 sm:p-6 lg:p-8">
         {/* ── Step 1: Personal Info ── */}
         {step === 1 && (
           <div>
-            <h1 className="text-2xl font-bold">Personal Information</h1>
-            <p className="mt-1 text-slate-500">
+            <h1 className="text-3xl font-bold tracking-tight">Personal Information</h1>
+            <p className="mt-1 text-sm text-slate-500 md:text-base">
               Provide the foundational details for the new employee record.
             </p>
-            <div className="mt-6 grid grid-cols-2 gap-5">
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Full Name</label>
                 <input
@@ -379,27 +403,25 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Nationality</label>
-                <Select
-                  options={NATIONALITIES}
-                  onChange={(selected) => {
-                    if (selected) {
-                      update("nationality", selected.value);
-                      update("phoneCode", selected.phone);
-                    }
+                <select
+                  value={data.nationality}
+                  onChange={(e) => {
+                    const selected = NATIONALITIES.find(
+                      (item) => item.value === e.target.value,
+                    );
+                    update("nationality", e.target.value);
+                    if (selected) update("phoneCode", selected.phone);
                   }}
-                  placeholder="Search nationality..."
-                  isSearchable
-                  classNamePrefix="react-select"
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      borderColor: "#e2e8f0",
-                      borderRadius: "0.5rem",
-                      minHeight: "42px",
-                      fontSize: "0.875rem",
-                    }),
-                  }}
-                />
+                  aria-label="Nationality"
+                  className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+                >
+                  <option value="">Select nationality</option>
+                  {NATIONALITIES.map((item) => (
+                    <option key={item.code} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -420,7 +442,7 @@ export default function OnboardingPage() {
                 {photoPreview ? "Change Photo" : "Upload Employee Photo"}
               </p>
               <p className="text-xs text-slate-400">JPEG, PNG up to 5MB</p>
-              {photoError && <p className="text-xs text-red-500">{photoError}</p>}
+              {photoError && <p className="text-xs text-rose-500">{photoError}</p>}
               <input
                 id="onboarding-photo"
                 type="file"
@@ -435,9 +457,9 @@ export default function OnboardingPage() {
         {/* ── Step 2: Job Details ── */}
         {step === 2 && (
           <div>
-            <h1 className="text-2xl font-bold">Job Details</h1>
-            <p className="mt-1 text-slate-500">Define the employee&apos;s role and employment terms.</p>
-            <div className="mt-6 grid grid-cols-2 gap-5">
+            <h1 className="text-3xl font-bold tracking-tight">Job Details</h1>
+            <p className="mt-1 text-sm text-slate-500 md:text-base">Define the employee&apos;s role and employment terms.</p>
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Job Title</label>
                 <input
@@ -487,9 +509,9 @@ export default function OnboardingPage() {
         {/* ── Step 3: Contact & Address ── */}
         {step === 3 && (
           <div>
-            <h1 className="text-2xl font-bold">Contact & Address</h1>
-            <p className="mt-1 text-slate-500">Final step — verify how to reach the new employee.</p>
-            <div className="mt-6 grid grid-cols-2 gap-5">
+            <h1 className="text-3xl font-bold tracking-tight">Contact & Address</h1>
+            <p className="mt-1 text-sm text-slate-500 md:text-base">Final step — verify how to reach the new employee.</p>
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Work Email</label>
                 <input
@@ -508,11 +530,11 @@ export default function OnboardingPage() {
                   }}
                   placeholder="e.g. a.pierce@hrconnect.ai"
                   className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none focus:border-blue-500 ${
-                    emailError ? "border-red-400" : "border-slate-200"
+                    emailError ? "border-rose-400" : "border-slate-200"
                   }`}
                 />
                 {emailError && (
-                  <p className="mt-1 text-xs text-red-500">{emailError}</p>
+                  <p className="mt-1 text-xs text-rose-500">{emailError}</p>
                 )}
               </div>
               <div>
@@ -546,7 +568,7 @@ export default function OnboardingPage() {
                     maxLength={getPhoneLength(data.phoneCode)}
                     className={`flex-1 rounded-lg border px-4 py-2.5 text-sm outline-none focus:border-blue-500 ${
                       data.phone.length > 0 && data.phone.length < getPhoneLength(data.phoneCode)
-                        ? "border-red-400"
+                        ? "border-rose-400"
                         : "border-slate-200"
                     }`}
                   />
@@ -554,13 +576,13 @@ export default function OnboardingPage() {
                 <p className="mt-1 text-xs text-slate-400">
                   {data.phoneCode} + {getPhoneLength(data.phoneCode)} digits required
                   {data.phone.length > 0 && (
-                    <span className={data.phone.length === getPhoneLength(data.phoneCode) ? " text-green-600" : " text-red-500"}>
+                    <span className={data.phone.length === getPhoneLength(data.phoneCode) ? " text-emerald-600" : " text-rose-500"}>
                       {" "}— {data.phone.length}/{getPhoneLength(data.phoneCode)} entered
                     </span>
                   )}
                 </p>
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Mailing Address</label>
                 <textarea
                   value={data.address}
@@ -575,7 +597,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Footer actions */}
-        <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-6">
+        <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <button
             onClick={handleBack}
             disabled={step === 1}
@@ -584,7 +606,7 @@ export default function OnboardingPage() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/employees"
               className="rounded-lg px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50"
@@ -602,6 +624,7 @@ export default function OnboardingPage() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
