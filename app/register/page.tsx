@@ -71,8 +71,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          // eslint-disable-next-line react/jsx-no-comment-textnodes
-          {/* Futuristic Data Dashboard Mockup Image Layer */}
+z          {/* Futuristic Data Dashboard Mockup Image Layer */}
           // eslint-disable-next-line react/jsx-no-comment-textnodes
           <div className="relative rounded-lg border border-white/10 bg-slate-900/50 p-2 overflow-hidden shadow-2xl backdrop-blur-sm">
             // eslint-disable-next-line @next/next/no-img-element, @next/next/no-img-element

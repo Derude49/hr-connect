@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HR Connect
 
-## Getting Started
+**HR Connect** is a modern HR management dashboard built with Next.js.
 
-First, run the development server:
+It helps HR teams and people managers centralize employee operations by providing:
+
+- employee directory and profile management
+- onboarding workflow support
+- attendance tracking and dashboard visibility
+- leave application and approval flows
+- payroll summary and status tracking
+- performance goals, reviews, and feedback management
+
+The app is designed as a workplace HR portal that connects employee data, approvals, and reporting in a single UI.
+
+## Project structure
+
+- `app/`
+  - `page.tsx` — public landing or entry page
+  - `register/page.tsx` — user registration page
+  - `(dashboardlayout)/` — protected dashboard layout and nested app pages
+    - `dashboard/page.tsx` — main dashboard overview
+    - `attendance/page.tsx` — attendance tracking
+    - `employees/page.tsx` — employee list page
+    - `employees/[id]/page.tsx` — employee detail page
+    - `employees/[id]/edit/page.tsx` — edit employee profile
+    - `employees/onboarding/page.tsx` — onboarding management
+    - `leave/page.tsx` — leave management overview
+    - `leave/apply/page.tsx` — leave application flow
+    - `payroll/page.tsx` — payroll summary
+    - `performance/page.tsx` — performance dashboard
+    - `performance/goals/page.tsx` — goals tracking
+    - `performance/review/page.tsx` — performance review page
+    - `performance/reviews/page.tsx` — reviews list
+    - `settings/page.tsx` — application settings
+- `components/` — reusable UI components and layout helpers
+- `components/ui/` — shared UI primitives like buttons, cards, dialogs, inputs, labels, selects, and badges
+- `lib/` — app utilities, mock stores, and local storage helpers
+- `public/` — static assets used by the application
+
+## Local development
+
+Install dependencies and start the app:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000` in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` — start the development server
+- `npm run build` — build the production app
+- `npm run start` — start the production server after build
+- `npm run lint` — run ESLint
 
-## Learn More
+## Dependencies
 
-To learn more about Next.js, take a look at the following resources:
+Key dependencies in this project:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `next` — Next.js application framework
+- `react` / `react-dom` — React library
+- `@radix-ui/react-dialog`, `@radix-ui/react-label`, `@radix-ui/react-select`, `@radix-ui/react-slot` — accessible UI primitives
+- `class-variance-authority`, `clsx`, `tailwind-merge` — styling utilities
+- `lucide-react` — icon components
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
+- This project uses the Next.js App Router.
+- UI components are organized under `components/` and `components/ui/`.
+- The dashboard pages are nested under `(dashboardlayout)` to reuse a shared layout.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Learn more
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For Next.js documentation, visit https://nextjs.org/docs.
