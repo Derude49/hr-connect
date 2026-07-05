@@ -52,13 +52,44 @@ function StatCard({ label, value, accentColor, badge }: StatCardProps) {
   );
 }
 
+const employeeList = [
+  { name: "Sarah Jenkins", role: "Marketing Team" },
+  { name: "Marcus Vane",   role: "Operations" },
+  { name: "Leo Zhang",     role: "Engineering" },
+  { name: "Amira Osei",    role: "HR & Admin" },
+  { name: "David Kimani",  role: "Design Team" },
+  { name: "Priya Nair",    role: "Sales" },
+  { name: "James Mwangi",  role: "Finance" },
+];
+
 const departments = ["Marketing Team", "Operations", "Engineering", "HR & Admin", "Design Team", "Sales", "Finance"];
+
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase();
+}
+
+const avatarColors: Record<string, string> = {
+  "Marketing Team": "bg-pink-100 text-pink-700",
+  "Operations":     "bg-orange-100 text-orange-700",
+  "Engineering":    "bg-blue-100 text-blue-700",
+  "HR & Admin":     "bg-purple-100 text-purple-700",
+  "Design Team":    "bg-teal-100 text-teal-700",
+  "Sales":          "bg-green-100 text-green-700",
+  "Finance":        "bg-amber-100 text-amber-700",
+};
+
+const defaultData: AttendanceRecord[] = [
+  { id: 1, name: "Sarah Jenkins", role: "Marketing Team", date: "Oct 25, 2023", clockIn: "08:45 AM", clockOut: "05:30 PM", hours: "8h 45m", status: "Present" },
+  { id: 2, name: "Marcus Vane",   role: "Operations",     date: "Oct 25, 2023", clockIn: "09:12 AM", clockOut: "06:05 PM", hours: "8h 53m", status: "Remote"  },
+  { id: 3, name: "Leo Zhang",     role: "Engineering",    date: "Oct 25, 2023", clockIn: "09:45 AM", clockOut: "06:30 PM", hours: "8h 45m", status: "Late"    },
+];
 
 export default function AttendanceLog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [selectedDate, setSelectedDate] = useState('2023-10-25');
   const [isMarkModalOpen, setIsMarkModalOpen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const [newAttendance, setNewAttendance] = useState({
     name: '',
@@ -68,26 +99,47 @@ export default function AttendanceLog() {
     status: 'Present'
   });
 
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-
-  useEffect(() => {
+// Lazy initializer — runs once, no useEffect needed for loading
+const [records, setRecords] = useState<AttendanceRecord[]>(() => {
+  try {
     const saved = localStorage.getItem('attendanceRecords');
     if (saved) {
-      setRecords(JSON.parse(saved));
-    } else {
-      const defaultData = [
-        { id: 1, name: "Sarah Jenkins", role: "Marketing Team", date: "Oct 25, 2023", clockIn: "08:45 AM", clockOut: "05:30 PM", hours: "8h 45m", status: "Present" },
-        { id: 2, name: "Marcus Vane", role: "Operations", date: "Oct 25, 2023", clockIn: "09:12 AM", clockOut: "06:05 PM", hours: "8h 53m", status: "Remote" },
-        { id: 3, name: "Leo Zhang", role: "Engineering", date: "Oct 25, 2023", clockIn: "09:45 AM", clockOut: "06:30 PM", hours: "8h 45m", status: "Late" },
-      ];
-      setRecords(defaultData);
-      localStorage.setItem('attendanceRecords', JSON.stringify(defaultData));
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
-  }, []);
+  } catch {
+    // fall through to default
+  }
+  return defaultData;
+});
 
-  useEffect(() => {
+// Save whenever records change
+useEffect(() => {
+  try {
     localStorage.setItem('attendanceRecords', JSON.stringify(records));
-  }, [records]);
+  } catch {
+    console.error('Failed to save records');
+  }
+}, [records]);
+
+  // Save to localStorage only after initial load
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem('attendanceRecords', JSON.stringify(records));
+    } catch {
+      console.error('Failed to save records');
+    }
+  }, [records, isLoaded]);
+
+  const handleEmployeeSelect = (selectedName: string) => {
+    const employee = employeeList.find(e => e.name === selectedName);
+    setNewAttendance({
+      ...newAttendance,
+      name: selectedName,
+      role: employee ? employee.role : newAttendance.role,
+    });
+  };
 
   const filteredData = records.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -105,7 +157,6 @@ export default function AttendanceLog() {
       alert("Please fill required fields");
       return;
     }
-
     const newRecord: AttendanceRecord = {
       id: Date.now(),
       name: newAttendance.name,
@@ -116,15 +167,14 @@ export default function AttendanceLog() {
       hours: calculateHours(newAttendance.clockIn, newAttendance.clockOut),
       status: newAttendance.status
     };
-
-    setRecords([newRecord, ...records]);
+    setRecords(prev => [newRecord, ...prev]);
     setIsMarkModalOpen(false);
     setNewAttendance({ name: '', role: 'Marketing Team', clockIn: '', clockOut: '', status: 'Present' });
   };
 
   const handleDelete = (id: number) => {
     if (confirm("Delete this record?")) {
-      setRecords(records.filter(r => r.id !== id));
+      setRecords(prev => prev.filter(r => r.id !== id));
     }
   };
 
@@ -146,79 +196,139 @@ export default function AttendanceLog() {
                 Mark Attendance
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Mark Attendance</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-6 py-4">
-                <div>
-                  <Label>Employee Name</Label>
-                  <Input value={newAttendance.name} onChange={(e) => setNewAttendance({...newAttendance, name: e.target.value})} placeholder="Full Name" className="mt-2" />
+
+            <DialogContent
+  className="sm:max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200"
+  onInteractOutside={(e) => e.preventDefault()}
+  onEscapeKeyDown={(e) => e.preventDefault()}
+>
+  <DialogHeader>
+    <DialogTitle className="text-lg font-semibold text-gray-900">Mark Attendance</DialogTitle>
+  </DialogHeader>
+  <div className="space-y-5 py-4">
+
+    {/* Employee Name */}
+    <div>
+      <Label className="text-sm font-medium text-gray-700">Employee Name</Label>
+      <Select value={newAttendance.name} onValueChange={handleEmployeeSelect}>
+        <SelectTrigger className="mt-2 h-11 bg-white border-gray-300 rounded-xl">
+          <SelectValue placeholder="Select employee..." />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto"
+        >
+          {employeeList.map(emp => (
+            <SelectItem
+              key={emp.name}
+              value={emp.name}
+              className="py-2 cursor-pointer hover:bg-gray-50 rounded-lg"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColors[emp.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {getInitials(emp.name)}
                 </div>
-                <div>
-                  <Label>Department</Label>
-                  <Select value={newAttendance.role} onValueChange={(value) => setNewAttendance({...newAttendance, role: value})}>
-                    <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {departments.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 leading-tight">{emp.name}</p>
+                  <p className="text-xs text-gray-400 leading-tight mt-0.5">{emp.role}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Clock In</Label>
-                    <Input type="time" value={newAttendance.clockIn} onChange={(e) => setNewAttendance({...newAttendance, clockIn: e.target.value})} />
-                  </div>
-                  <div>
-                    <Label>Clock Out</Label>
-                    <Input type="time" value={newAttendance.clockOut} onChange={(e) => setNewAttendance({...newAttendance, clockOut: e.target.value})} />
-                  </div>
-                </div>
-                <Button onClick={handleMarkAttendance} className="w-full">Save Attendance</Button>
               </div>
-            </DialogContent>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Department */}
+    <div>
+      <Label className="text-sm font-medium text-gray-700">Department</Label>
+      <Select value={newAttendance.role} onValueChange={(value) => setNewAttendance({ ...newAttendance, role: value })}>
+        <SelectTrigger className="mt-2 h-11 bg-white border-gray-300 rounded-xl">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg"
+        >
+          {departments.map(dept => (
+            <SelectItem
+              key={dept}
+              value={dept}
+              className="cursor-pointer hover:bg-gray-50 rounded-lg"
+            >
+              {dept}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Status */}
+    <div>
+      <Label className="text-sm font-medium text-gray-700">Status</Label>
+      <Select value={newAttendance.status} onValueChange={(value) => setNewAttendance({ ...newAttendance, status: value })}>
+        <SelectTrigger className="mt-2 h-11 bg-white border-gray-300 rounded-xl">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          className="z-[200] bg-white border border-gray-200 rounded-xl shadow-lg"
+        >
+          <SelectItem value="Present" className="cursor-pointer hover:bg-gray-50 rounded-lg">✅ Present</SelectItem>
+          <SelectItem value="Late" className="cursor-pointer hover:bg-gray-50 rounded-lg">⏰ Late</SelectItem>
+          <SelectItem value="Remote" className="cursor-pointer hover:bg-gray-50 rounded-lg">🏠 Remote</SelectItem>
+          <SelectItem value="On Leave" className="cursor-pointer hover:bg-gray-50 rounded-lg">🌴 On Leave</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Clock In / Clock Out */}
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label className="text-sm font-medium text-gray-700">Clock In</Label>
+        <Input
+          type="time"
+          value={newAttendance.clockIn}
+          onChange={(e) => setNewAttendance({ ...newAttendance, clockIn: e.target.value })}
+          className="mt-2 h-11 bg-white border-gray-300 rounded-xl"
+        />
+      </div>
+      <div>
+        <Label className="text-sm font-medium text-gray-700">Clock Out</Label>
+        <Input
+          type="time"
+          value={newAttendance.clockOut}
+          onChange={(e) => setNewAttendance({ ...newAttendance, clockOut: e.target.value })}
+          className="mt-2 h-11 bg-white border-gray-300 rounded-xl"
+        />
+      </div>
+    </div>
+
+    <Button onClick={handleMarkAttendance} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold">
+      Save Attendance
+    </Button>
+  </div>
+</DialogContent>
           </Dialog>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            label="TOTAL PRESENT TODAY"
-            value="142 / 156"
-            accentColor="#10b981"
-            badge={{ text: '↑ 91% today', tone: 'green' }}
-          />
-          <StatCard
-            label="LATE ARRIVALS"
-            value="08"
-            accentColor="#f59e0b"
-            badge={{ text: '↑ 2 vs yesterday', tone: 'amber' }}
-          />
-          <StatCard
-            label="AVG. WORK HOURS"
-            value="8.2h"
-            accentColor="#3b82f6"
-            badge={{ text: '↑ 0.4h this week', tone: 'blue' }}
-          />
-          <StatCard
-            label="ON LEAVE"
-            value="06"
-            accentColor="#a855f7"
-            badge={{ text: 'Planned today', tone: 'purple' }}
-          />
+          <StatCard label="TOTAL PRESENT TODAY" value="142 / 156" accentColor="#10b981" badge={{ text: '↑ 91% today',     tone: 'green'  }} />
+          <StatCard label="LATE ARRIVALS"        value="08"        accentColor="#f59e0b" badge={{ text: '↑ 2 vs yesterday', tone: 'amber'  }} />
+          <StatCard label="AVG. WORK HOURS"      value="8.2h"      accentColor="#3b82f6" badge={{ text: '↑ 0.4h this week', tone: 'blue'   }} />
+          <StatCard label="ON LEAVE"             value="06"        accentColor="#a855f7" badge={{ text: 'Planned today',    tone: 'purple' }} />
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
-            <Input placeholder="Search employee name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-11" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input placeholder="Search employee name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-11 h-11" />
           </div>
-
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="border border-gray-300 rounded-lg px-4 py-3 w-full md:w-52" />
-
+          <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full md:w-52 h-11" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full md:w-48 h-11">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -267,6 +377,12 @@ export default function AttendanceLog() {
               ))}
             </tbody>
           </table>
+
+          {filteredData.length === 0 && (
+            <div className="py-16 text-center text-gray-400">
+              <p className="text-sm">No records found.</p>
+            </div>
+          )}
         </div>
 
       </div>
