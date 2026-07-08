@@ -1,23 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Camera, Trash2, ShieldCheck } from "lucide-react";
-import { employees as seedEmployees, EmergencyContact } from "@/lib/mock-data";
+import { employees as seedEmployees, EmergencyContact, Employee } from "@/lib/mock-data";
 import { getAllEmployees, updateEmployee } from "@/lib/storage";
 
 export default function EditEmployeePage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const [allEmployees, setAllEmployees] = useState<Employee[]>(seedEmployees);
 
-  const allEmployees = typeof window !== "undefined" ? getAllEmployees(seedEmployees) : seedEmployees;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAllEmployees(getAllEmployees(seedEmployees));
+  }, []);
+
   const employee = allEmployees.find((e) => e.id === params.id);
+
+  if (!employee) {
+    return (
+      <div className="rounded-xl bg-white p-12 text-center shadow-sm">
+        <p className="text-lg font-semibold text-slate-700">Employee not found</p>
+        <Link href="/employees" className="mt-4 inline-block text-sm font-medium text-blue-600">
+          Back to Directory
+        </Link>
+      </div>
+    );
+  }
+
+  return <EditEmployeeForm key={employee.id} employee={employee} />;
+}
+
+function EditEmployeeForm({ employee }: { employee: Employee }) {
+  const router = useRouter();
 
   const [legalName, setLegalName] = useState(employee?.name ?? "");
   const [dateOfBirth, setDateOfBirth] = useState(employee?.dateOfBirth ?? "");
   const [gender, setGender] = useState(employee?.gender ?? "");
-  const [nationality, setNationality] = useState("American");
+  const [nationality, setNationality] = useState(employee?.nationality ?? "American");
   const [personalEmail, setPersonalEmail] = useState(employee?.personalEmail ?? "");
   const [mobilePhone, setMobilePhone] = useState(employee?.mobilePhone ?? "");
   const [mailingAddress, setMailingAddress] = useState(employee?.mailingAddress ?? "");
@@ -58,8 +79,8 @@ export default function EditEmployeePage() {
   }
 
   return (
-    <>
-      <p className="mb-4 text-sm text-slate-400">
+    <div className="min-h-screen space-y-8 bg-slate-50 p-6 text-slate-900 md:p-8">
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
         <Link href="/employees" className="hover:text-slate-600">Directory</Link>
         <span className="mx-2">/</span>
         <Link href={`/employees/${employee.id}`} className="hover:text-slate-600">{employee.name}</Link>
@@ -67,12 +88,12 @@ export default function EditEmployeePage() {
         <span className="font-semibold text-slate-600">Edit Profile</span>
       </p>
 
-      <h1 className="mb-6 text-3xl font-bold">Edit Profile</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Edit Profile</h1>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           {/* Header */}
-          <div className="flex items-center justify-between rounded-xl bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 rounded-xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-4">
               <div className="relative flex h-20 w-20 items-center justify-center rounded-xl bg-blue-100 text-xl font-bold text-blue-700">
                 {employee.avatarInitials ?? employee.name.split(" ").map((n) => n[0]).join("")}
@@ -85,10 +106,10 @@ export default function EditEmployeePage() {
                 <p className="text-sm text-slate-500">
                   {employee.role} | {employee.department}
                 </p>
-                <button className="mt-1 text-sm font-medium text-blue-600">Upload New Photo</button>
+                <button className="mt-1 text-sm font-semibold text-blue-600">Upload New Photo</button>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href={`/employees/${employee.id}`}
                 className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700"
@@ -105,9 +126,9 @@ export default function EditEmployeePage() {
           </div>
 
           {/* Personal Information */}
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold">Personal Information</h2>
-            <div className="grid grid-cols-2 gap-5">
+          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-base font-bold tracking-tight text-slate-900">Personal Information</h2>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Legal Name</label>
                 <input
@@ -153,9 +174,9 @@ export default function EditEmployeePage() {
           </div>
 
           {/* Contact Details */}
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold">Contact Details</h2>
-            <div className="grid grid-cols-2 gap-5">
+          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-base font-bold tracking-tight text-slate-900">Contact Details</h2>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Personal Email</label>
                 <input
@@ -174,7 +195,7 @@ export default function EditEmployeePage() {
                   className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Mailing Address</label>
                 <textarea
                   value={mailingAddress}
@@ -188,16 +209,17 @@ export default function EditEmployeePage() {
           </div>
 
           {/* Emergency Contacts */}
-          <div className="rounded-xl bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Emergency Contacts</h2>
+              <h2 className="text-base font-bold tracking-tight text-slate-900">Emergency Contacts</h2>
               <button onClick={addContact} className="text-sm font-medium text-blue-600">
                 + Add Contact
               </button>
             </div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="min-w-[520px] w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-semibold tracking-wide text-slate-400">
+                <tr className="border-b border-slate-100 bg-slate-50/75 text-left text-xs font-bold uppercase tracking-wider text-slate-400">
                   <th className="py-2">NAME</th>
                   <th className="py-2">RELATIONSHIP</th>
                   <th className="py-2">PHONE</th>
@@ -212,22 +234,23 @@ export default function EditEmployeePage() {
                     <td className="py-3 text-slate-600">{c.phone}</td>
                     <td className="py-3 text-right">
                       <button onClick={() => removeContact(i)} aria-label={`Remove ${c.name}`}>
-                        <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
+                        <Trash2 className="h-4 w-4 text-slate-400 hover:text-rose-600" />
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <div className="rounded-xl bg-slate-900 p-5 text-white">
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900 p-6 text-white shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-base font-bold">Identity Verification</h3>
-              <span className="rounded-md bg-green-600 px-2 py-1 text-xs font-semibold">VERIFIED</span>
+              <span className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold">VERIFIED</span>
             </div>
             <p className="text-sm text-slate-300">
               Identification documents were successfully verified on Oct 12, 2023.
@@ -241,8 +264,8 @@ export default function EditEmployeePage() {
             </button>
           </div>
 
-          <div className="rounded-xl bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-base font-bold">Privacy Settings</h3>
+          <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-base font-bold tracking-tight text-slate-900">Privacy Settings</h3>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">Profile Visibility</p>
@@ -278,7 +301,7 @@ export default function EditEmployeePage() {
               </button>
             </div>
 
-            <p className="mt-5 mb-2 text-xs font-semibold tracking-wide text-slate-400">NOTIFICATIONS</p>
+            <p className="mt-5 mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">NOTIFICATIONS</p>
             <div className="space-y-2 text-sm text-slate-700">
               <label className="flex items-center gap-2">
                 <input type="checkbox" defaultChecked /> Email updates for payroll
@@ -298,6 +321,6 @@ export default function EditEmployeePage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

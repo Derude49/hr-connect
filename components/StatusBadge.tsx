@@ -1,7 +1,7 @@
 const statusStyles = {
-  Active: "bg-green-50 text-green-700",
+  Active: "bg-emerald-50 text-emerald-700",
   Suspended: "bg-amber-50 text-amber-700",
-  Resigned: "bg-red-50 text-red-700",
+  Resigned: "bg-rose-50 text-rose-700",
 };
 
 export default function StatusBadge({ status }: { status: keyof typeof statusStyles }) {

@@ -14,7 +14,7 @@ const activities = [
   },
   {
     icon: CheckCircle2,
-    iconBg: "bg-green-100 text-green-600",
+    iconBg: "bg-emerald-100 text-emerald-600",
     text: (
       <>
         <span className="font-semibold">Marcus Wong&apos;s</span> annual
@@ -38,10 +38,10 @@ const activities = [
 
 export default function RecentActivity() {
   return (
-    <div className="rounded-xl bg-white p-6 shadow-sm">
+    <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold">Recent Activities</h2>
-        <button className="text-sm font-medium text-blue-600">
+        <h2 className="text-base font-bold tracking-tight text-slate-900">Recent Activities</h2>
+        <button className="text-sm font-semibold text-blue-600">
           View History
         </button>
       </div>
@@ -54,7 +54,7 @@ export default function RecentActivity() {
             </div>
             <div className="flex-1">
               <p className="text-sm text-slate-700">{a.text}</p>
-              <p className="mt-1 text-xs tracking-wide text-slate-400">
+              <p className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-400">
                 {a.meta}
               </p>
             </div>
